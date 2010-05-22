@@ -555,6 +555,8 @@ EvdevProcessRelativeMotionEvent(InputInfoPtr pInfo, struct input_event *ev)
             EvdevQueueButtonClicks(pInfo, wheel_up_button, value);
         else if (value < 0)
             EvdevQueueButtonClicks(pInfo, wheel_down_button, -value);
+        
+        value *= pEvdev->wheel_resolution;
     }
     
     if(ev->code == REL_HWHEEL || ev->code == REL_HWHEEL) {
@@ -562,6 +564,8 @@ EvdevProcessRelativeMotionEvent(InputInfoPtr pInfo, struct input_event *ev)
             EvdevQueueButtonClicks(pInfo, wheel_right_button, value);
         else if (value < 0)
             EvdevQueueButtonClicks(pInfo, wheel_left_button, -value);
+        
+        value *= pEvdev->wheel_resolution;
     }
 
     /* Ignore EV_REL events if we never set up for them. */
@@ -2136,16 +2140,6 @@ EvdevPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
        words, it disables rfkill and the "Macintosh mouse button emulation".
        Note that this needs a server that sets the console to RAW mode. */
     pEvdev->grabDevice = xf86CheckBoolOption(dev->commonOptions, "GrabDevice", 0);
-    
-    pEvdev->wheel_resolution = xf86SetIntOption(pInfo->options, "WheelResolution", 1);
-    
-    if(pEvdev->wheel_resolution <= 0) {
-        xf86Msg(X_WARNING, "%s: Invalid WheelResolution value: %d\n",
-                pInfo->name, pEvdev->wheel_resolution);
-        xf86Msg(X_WARNING, "%s: Using built-in resolution value.\n",
-                pInfo->name);
-        pEvdev->wheel_resolution = 1;
-    }
 
     EvdevInitButtonMapping(pInfo);
 
@@ -2163,6 +2157,20 @@ EvdevPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
         EvdevMBEmuPreInit(pInfo);
         EvdevWheelEmuPreInit(pInfo);
         EvdevDragLockPreInit(pInfo);
+    }
+    
+    pEvdev->wheel_resolution = xf86SetIntOption(pInfo->options, "WheelResolution", pEvdev->emulateWheel.enabled ? 42 : 1);
+    
+    if(pEvdev->wheel_resolution <= 0) {
+        xf86Msg(X_WARNING, "%s: Invalid WheelResolution value: %d\n",
+                pInfo->name, pEvdev->wheel_resolution);
+        xf86Msg(X_WARNING, "%s: Using built-in resolution value.\n",
+                pInfo->name);
+        
+        if(pEvdev->emulateWheel.enabled)
+            pEvdev->wheel_resolution = 42;
+        else
+            pEvdev->wheel_resolution = 1;
     }
 
     return pInfo;
