@@ -354,7 +354,7 @@ xf86CrtcSetModeTransform (xf86CrtcPtr crtc, DisplayModePtr mode, Rotation rotati
     }
 
     /* Only upload when needed, to avoid unneeded delays. */
-    if (!crtc->active)
+    if (!crtc->active && crtc->funcs->gamma_set)
 	crtc->funcs->gamma_set(crtc, crtc->gamma_red, crtc->gamma_green,
                                             crtc->gamma_blue, crtc->gamma_size);
 
@@ -3011,6 +3011,7 @@ xf86_crtc_box_area(BoxPtr box)
     return (int) (box->x2 - box->x1) * (int) (box->y2 - box->y1);
 }
 
+#ifdef XV
 /*
  * Return the crtc covering 'box'. If two crtcs cover a portion of
  * 'box', then prefer 'desired'. If 'desired' is NULL, then prefer the crtc
@@ -3099,6 +3100,7 @@ xf86_crtc_clip_video_helper(ScrnInfoPtr pScrn,
 
     return ret;
 }
+#endif
 
 xf86_crtc_notify_proc_ptr
 xf86_wrap_crtc_notify (ScreenPtr screen, xf86_crtc_notify_proc_ptr new)

@@ -283,12 +283,18 @@ ddxGiveUp (void)
 
 /* See Porting Layer Definition - p. 57 */
 void
-AbortDDX (void)
+SigAbortDDX (int signo)
 {
 #if CYGDEBUG
   winDebug ("AbortDDX\n");
 #endif
   ddxGiveUp ();
+}
+
+void
+AbortDDX (void)
+{
+    SigAbortDDX(0);
 }
 
 #ifdef __CYGWIN__
@@ -850,6 +856,9 @@ winUseMsg (void)
 #ifdef XWIN_XF86CONFIG
   ErrorF ("-config\n"
           "\tSpecify a configuration file.\n");
+
+  ErrorF ("-configdir\n"
+          "\tSpecify a configuration directory.\n");
 
   ErrorF ("-keyboard\n"
 	  "\tSpecify a keyboard device from the configuration file.\n");

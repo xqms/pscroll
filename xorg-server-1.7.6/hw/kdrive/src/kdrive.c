@@ -322,7 +322,7 @@ KdProcessSwitch (void)
 }
 
 void
-AbortDDX(void)
+SigAbortDDX(int signo)
 {
     KdDisableScreens ();
     if (kdOsFuncs)
@@ -336,6 +336,12 @@ AbortDDX(void)
 
     if (kdCaughtSignal)
         abort();
+}
+
+void
+AbortDDX(void)
+{
+    SigAbortDDX(0);
 }
 
 void

@@ -232,6 +232,13 @@ NewInputDeviceRequest(InputOption *options, DeviceIntPtr *pdev)
     return BadValue;
 }
 
+int
+NewInputDeviceRequest18(InputOption *options, InputAttributes *attrs,
+                      DeviceIntPtr *pdev)
+{
+    return BadValue;
+}
+
 /****************************************************************************
  *
  * Caller: configRemoveDevice (and others)

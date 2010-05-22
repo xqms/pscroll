@@ -77,6 +77,7 @@
 #ifdef RENDER
 #include "picturestr.h"
 #endif
+#include "xace.h"
 
 #include "xf86VGAarbiter.h"
 #include "globals.h"
@@ -249,6 +250,7 @@ xf86CreateRootWindow(WindowPtr pWin)
   int ret = TRUE;
   int err = Success;
   ScreenPtr pScreen = pWin->drawable.pScreen;
+  ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
   RootWinPropPtr pProp;
   CreateWindowProcPtr CreateWindow = (CreateWindowProcPtr)
       dixLookupPrivate(&pScreen->devPrivates, xf86CreateRootWindowKey);
@@ -298,6 +300,15 @@ xf86CreateRootWindow(WindowPtr pWin)
 	      (void *)pWin, (void *)pWin->parent);
       ret = FALSE;
     }
+  }
+
+  if (bgNoneRoot && pScrn->canDoBGNoneRoot) {
+      pWin->backgroundState = XaceBackgroundNoneState(pWin);
+      pWin->background.pixel = pScreen->whitePixel;
+      pScreen->ChangeWindowAttributes(pWin, CWBackPixmap | CWBorderPixel | CWCursor | CWBackingStore);
+  } else {
+      pWin->background.pixel = pScreen->blackPixel;
+      pScreen->ChangeWindowAttributes(pWin, CWBackPixel | CWBorderPixel | CWCursor | CWBackingStore);
   }
 
   DebugF("xf86CreateRootWindow() returns %d\n", ret);
@@ -1144,6 +1155,9 @@ OsVendorInit(void)
 
   if (!beenHere) {
     umask(022);
+    /* have glibc report internal abort traces to stderr instead of
+       the controlling terminal */
+    setenv("LIBC_FATAL_STDERR_","1",0);
     xf86LogInit();
   }
 
@@ -1174,14 +1188,17 @@ OsVendorInit(void)
 }
 
 /*
- * ddxGiveUp --
+ * ddxSigGiveUp --
  *      Device dependent cleanup. Called by by dix before normal server death.
  *      For SYSV386 we must switch the terminal back to normal mode. No error-
  *      checking here, since there should be restored as much as possible.
+ *
+ *      If a non-zero signo is passed, re-raise that signal rather than
+ *      calling abort().
  */
 
 void
-ddxGiveUp(void)
+ddxSigGiveUp(int signo)
 {
     int i;
 
@@ -1207,24 +1224,45 @@ ddxGiveUp(void)
 
     xf86CloseConsole();
 
+    ErrorF (" ddxSigGiveUp: Closing log\n");
     xf86CloseLog();
 
     /* If an unexpected signal was caught, dump a core for debugging */
-    if (xf86Info.caughtSignal)
-	abort();
+    if (xf86Info.caughtSignal) {
+        if (signo != 0) {
+            raise(signo);
+        } else {
+            abort();
+        }
+    }
 }
 
-
-
 /*
- * AbortDDX --
- *      DDX - specific abort routine.  Called by AbortServer(). The attempt is
- *      made to restore all original setting of the displays. Also all devices
- *      are closed.
+ * ddxGiveUp --
+ *      Device dependent cleanup. Called by by dix before normal server death.
+ *      For SYSV386 we must switch the terminal back to normal mode. No error-
+ *      checking here, since there should be restored as much as possible.
  */
 
 void
-AbortDDX(void)
+ddxGiveUp()
+{
+    ddxSigGiveUp(0);
+}
+
+
+/*
+ * SigAbortDDX --
+ *      DDX - specific abort routine.  Called by AbortServer(). The attempt is
+ *      made to restore all original setting of the displays. Also all devices
+ *      are closed.
+ *
+ *      If a non-zero signo is passed, re-raise that signal rather than calling
+ *      abort()
+ */
+
+void
+SigAbortDDX(int signo)
 {
   int i;
 
@@ -1255,7 +1293,20 @@ AbortDDX(void)
    * This is needed for an abnormal server exit, since the normal exit stuff
    * MUST also be performed (i.e. the vt must be left in a defined state)
    */
-  ddxGiveUp();
+  ddxSigGiveUp(signo);
+}
+
+/*
+ * AbortDDX --
+ *      DDX - specific abort routine.  The attempt is made to restore
+ *      all original setting of the displays. Also all devices are
+ *      closed.
+ */
+
+void
+AbortDDX()
+{
+    SigAbortDDX(0);
 }
 
 void
@@ -1371,6 +1422,19 @@ ddxProcessArgument(int argc, char **argv, int i)
 	  argv[i], argv[i]);
     }
     xf86ConfigFile = argv[i + 1];
+    return 2;
+  }
+  if (!strcmp(argv[i], "-configdir"))
+  {
+    CHECK_FOR_REQUIRED_ARGUMENT();
+    if (getuid() != 0 && !xf86PathIsSafe(argv[i + 1])) {
+      FatalError("\nInvalid argument for %s\n"
+	  "\tFor non-root users, the file specified with %s must be\n"
+	  "\ta relative path and must not contain any \"..\" elements.\n"
+	  "\tUsing default "__XCONFIGDIR__" search path.\n\n",
+	  argv[i], argv[i]);
+    }
+    xf86ConfigDir = argv[i + 1];
     return 2;
   }
   if (!strcmp(argv[i],"-flipPixels"))
@@ -1656,6 +1720,8 @@ ddxUseMsg(void)
   }
   ErrorF("-config file           specify a configuration file, relative to the\n");
   ErrorF("                       "__XCONFIGFILE__" search path, only root can use absolute\n");
+  ErrorF("-configdir dir         specify a configuration directory, relative to the\n");
+  ErrorF("                       "__XCONFIGDIR__" search path, only root can use absolute\n");
   ErrorF("-verbose [n]           verbose startup messages\n");
   ErrorF("-logverbose [n]        verbose log messages\n");
   ErrorF("-quiet                 minimal startup messages\n");

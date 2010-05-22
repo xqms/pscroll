@@ -119,7 +119,7 @@ AM_CONDITIONAL(SPECIAL_DTRACE_OBJECTS, [test "x$SPECIAL_DTRACE_OBJECTS" = "xyes"
 
 AC_HEADER_DIRENT
 AC_HEADER_STDC
-AC_CHECK_HEADERS([fcntl.h stdlib.h string.h unistd.h dlfcn.h stropts.h])
+AC_CHECK_HEADERS([fcntl.h stdlib.h string.h unistd.h dlfcn.h stropts.h fnmatch.h])
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -471,6 +471,10 @@ AC_ARG_WITH(module-dir,      AS_HELP_STRING([--with-module-dir=DIR],
 				  [Directory where modules are installed (default: $libdir/xorg/modules)]),
 				[ moduledir="$withval" ],
 				[ moduledir="${libdir}/xorg/modules" ])
+AC_ARG_WITH(extra-module-dir,AS_HELP_STRING([--with-extra-module-dir=DIR],
+				  [Extra module directory to search for modules before the default one (default: empty)]),
+				[ extra_moduledir="$withval" ],
+				[ extra_moduledir="" ])
 AC_ARG_WITH(log-dir,         AS_HELP_STRING([--with-log-dir=DIR],
 				  [Directory where log files are kept (default: $localstatedir/log)]),
 				[ logdir="$withval" ],
@@ -502,9 +506,9 @@ AC_ARG_WITH(default-font-path, AS_HELP_STRING([--with-default-font-path=PATH], [
 AC_ARG_WITH(xkb-path,         AS_HELP_STRING([--with-xkb-path=PATH], [Path to XKB base dir (default: ${datadir}/X11/xkb)]),
 				[ XKBPATH="$withval" ],
 				[ XKBPATH="${datadir}/X11/xkb" ])
-AC_ARG_WITH(xkb-output,       AS_HELP_STRING([--with-xkb-output=PATH], [Path to XKB output dir (default: ${datadir}/X11/xkb/compiled)]),
+AC_ARG_WITH(xkb-output,       AS_HELP_STRING([--with-xkb-output=PATH], [Path to XKB output dir (default: ${localstatedir}/cache/xkb)]),
 				[ XKBOUTPUT="$withval" ],
-				[ XKBOUTPUT="compiled" ])
+				[ XKBOUTPUT="${localstatedir}/cache/xkb" ])
 AC_ARG_WITH(default-xkb-rules, AS_HELP_STRING([--with-default-xkb-rules=RULES],
                                    [Keyboard ruleset (default: base/evdev)]),
                                 [ XKB_DFLT_RULES="$withval" ],
@@ -601,6 +605,7 @@ AC_ARG_ENABLE(multibuffer,    AS_HELP_STRING([--enable-multibuffer], [Build Mult
 AC_ARG_ENABLE(dbe,            AS_HELP_STRING([--disable-dbe], [Build DBE extension (default: enabled)]), [DBE=$enableval], [DBE=yes])
 AC_ARG_ENABLE(xf86bigfont,    AS_HELP_STRING([--disable-xf86bigfont], [Build XF86 Big Font extension (default: disabled)]), [XF86BIGFONT=$enableval], [XF86BIGFONT=no])
 AC_ARG_ENABLE(dpms,           AS_HELP_STRING([--disable-dpms], [Build DPMS extension (default: enabled)]), [DPMSExtension=$enableval], [DPMSExtension=yes])
+AC_ARG_ENABLE(config-udev,    AS_HELP_STRING([--enable-config-udev], [Build udev support (default: no)]), [CONFIG_UDEV=$enableval], [CONFIG_UDEV=no])
 AC_ARG_ENABLE(config-dbus,    AS_HELP_STRING([--enable-config-dbus], [Build D-BUS API support (default: no)]), [CONFIG_DBUS_API=$enableval], [CONFIG_DBUS_API=no])
 AC_ARG_ENABLE(config-hal,     AS_HELP_STRING([--disable-config-hal], [Build HAL support (default: auto)]), [CONFIG_HAL=$enableval], [CONFIG_HAL=auto])
 AC_ARG_ENABLE(xfree86-utils,     AS_HELP_STRING([--enable-xfree86-utils], [Build xfree86 DDX utilities (default: enabled)]), [XF86UTILS=$enableval], [XF86UTILS=yes])
@@ -760,6 +765,26 @@ LIBXTST="xtst >= 1.0.99.2"
 LIBPCIACCESS="pciaccess >= 0.8.0"
 LIBGLIB="glib-2.0 >= 2.16"
 LIBSELINUX="libselinux >= 2.0.86"
+LIBUDEV="libudev >= 143"
+
+if test "x$CONFIG_UDEV" = xyes &&
+ { test "x$CONFIG_DBUS_API" = xyes || test "x$CONFIG_HAL" = xyes; }; then
+       AC_MSG_ERROR([Hotplugging through both libudev and dbus/hal not allowed])
+fi
+
+PKG_CHECK_MODULES(UDEV, $LIBUDEV, [HAVE_LIBUDEV=yes], [HAVE_LIBUDEV=no])
+if test "x$CONFIG_UDEV" = xauto; then
+       CONFIG_UDEV="$HAVE_LIBUDEV"
+fi
+AM_CONDITIONAL(CONFIG_UDEV, [test "x$CONFIG_UDEV" = xyes])
+if test "x$CONFIG_UDEV" = xyes; then
+       CONFIG_DBUS_API=no
+       CONFIG_HAL=no
+       if ! test "x$HAVE_LIBUDEV" = xyes; then
+               AC_MSG_ERROR([udev configuration API requested, but libudev is not installed])
+       fi
+       AC_DEFINE(CONFIG_UDEV, 1, [Use libudev for input hotplug])
+fi
 
 dnl HAVE_DBUS is true if we actually have the D-Bus library, whereas
 dnl CONFIG_DBUS_API is true if we want to enable the D-Bus config
@@ -793,13 +818,11 @@ if test "x$CONFIG_HAL" = xyes; then
 	fi
 
 	AC_DEFINE(CONFIG_HAL, 1, [Use the HAL hotplug API])
-        REQUIRED_LIBS="$REQUIRED_LIBS hal"
 	CONFIG_NEED_DBUS="yes"
 fi
 AM_CONDITIONAL(CONFIG_HAL, [test "x$CONFIG_HAL" = xyes])
 
 if test "x$CONFIG_NEED_DBUS" = xyes; then
-	REQUIRED_LIBS="$REQUIRED_LIBS dbus-1"
         AC_DEFINE(CONFIG_NEED_DBUS, 1, [Use D-Bus for input hotplug])
 fi
 AM_CONDITIONAL(CONFIG_NEED_DBUS, [test "x$CONFIG_NEED_DBUS" = xyes])
@@ -1100,7 +1123,7 @@ AC_DEFINE_DIR(XKB_BIN_DIRECTORY, XKB_BIN_DIRECTORY, [Path to XKB bin dir])
 dnl Make sure XKM_OUTPUT_DIR is an absolute path
 XKBOUTPUT_FIRSTCHAR=`echo $XKBOUTPUT | cut -b 1`
 if [[ x$XKBOUTPUT_FIRSTCHAR != x/ -a x$XKBOUTPUT_FIRSTCHAR != 'x$' ]] ; then
-   XKBOUTPUT="$XKB_BASE_DIRECTORY/$XKBOUTPUT"
+   AC_MSG_ERROR([xkb-output must be an absolute path.])
 fi
 
 dnl XKM_OUTPUT_DIR (used in code) must end in / or file names get hosed
@@ -1285,26 +1308,66 @@ MIEXT_SHADOW_INC='-I$(top_srcdir)/miext/shadow'
 MIEXT_SHADOW_LIB='$(top_builddir)/miext/shadow/libshadow.la'
 CORE_INCS='-I$(top_srcdir)/include -I$(top_builddir)/include'
 
-# OpenSSL used for SHA1 hashing in render/glyph.c, but we don't need all of
-# the OpenSSL libraries, just libcrypto
-# Some systems have matching functionality in the smaller/simpler libmd
-# Builders who want to force a choice can set SHA1_LIB and SHA1_CFLAGS
-if test "x$SHA1_LIB" = "x" ; then
-  AC_CHECK_LIB([md], [SHA1Init], [SHA1_LIB="-lmd"
-            AC_DEFINE([HAVE_SHA1_IN_LIBMD], [1],
-            [Use libmd SHA1 functions instead of OpenSSL libcrypto])])
+# SHA1 hashing
+AC_ARG_WITH([sha1],
+            [AS_HELP_STRING([--with-sha1=libmd|libgcrypt|libcrypto|libnettle],
+                            [choose SHA1 implementation])])
+AC_CHECK_LIB([md], [SHA1Init], [HAVE_LIBMD=yes])
+if test "x$with_sha1" = x && test "x$HAVE_LIBMD" = xyes; then
+        with_sha1=libmd
 fi
-
-if test "x$SHA1_LIB" = "x" ; then
-  PKG_CHECK_EXISTS([OPENSSL], [openssl], [HAVE_OPENSSL_PKC=yes],
-                    [HAVE_OPENSSL_PKC=no])
-  if test "x$HAVE_OPENSSL_PKC" = xyes; then
-    REQUIRED_LIBS="$REQUIRED_LIBS openssl"
-  else
-    AC_CHECK_LIB([crypto], [SHA1_Init], [SHA1_LIB="-lcrypto"],
-                 [AC_MSG_ERROR([OpenSSL must be installed in order to build the X server.])])
-  fi
+if test "x$with_sha1" = xlibmd && test "x$HAVE_LIBMD" != xyes; then
+        AC_MSG_ERROR([libmd requested but not found])
 fi
+if test "x$with_sha1" = xlibmd; then
+        AC_DEFINE([HAVE_SHA1_IN_LIBMD], [1],
+                  [Use libmd SHA1 functions])
+        SHA1_LIBS=-lmd
+fi
+AC_CHECK_LIB([gcrypt], [gcry_md_open], [HAVE_LIBGCRYPT=yes])
+if test "x$with_sha1" = x && test "x$HAVE_LIBGCRYPT" = xyes; then
+        with_sha1=libgcrypt
+fi
+if test "x$with_sha1" = xlibgcrypt; then
+        AC_DEFINE([HAVE_SHA1_IN_LIBGCRYPT], [1],
+                  [Use libgcrypt SHA1 functions])
+        SHA1_LIBS=-lgcrypt
+fi
+AC_CHECK_LIB([nettle], [nettle_sha1_init], [HAVE_LIBNETTLE=yes])
+if test "x$with_sha1" = x && test "x$HAVE_LIBNETTLE" = xyes; then
+        with_sha1=libnettle
+fi
+if test "x$with_sha1" = xlibnettle; then
+        AC_DEFINE([HAVE_SHA1_IN_LIBNETTLE], [1],
+                  [Use libnettle SHA1 functions])
+        SHA1_LIBS=/usr/lib/libnettle.a
+fi
+# We don't need all of the OpenSSL libraries, just libcrypto
+AC_CHECK_LIB([crypto], [SHA1_Init], [HAVE_LIBCRYPTO=yes])
+PKG_CHECK_MODULES([OPENSSL], [openssl], [HAVE_OPENSSL_PKC=yes],
+                  [HAVE_OPENSSL_PKC=no])
+if test "x$HAVE_LIBCRYPTO" = xyes || test "x$HAVE_OPENSSL_PKC" = xyes; then
+        if test "x$with_sha1" = x; then
+                with_sha1=libcrypto
+        fi
+else
+        if test "x$with_sha1" = xlibcrypto; then
+                AC_MSG_ERROR([OpenSSL libcrypto requested but not found])
+        fi
+fi
+if test "x$with_sha1" = xlibcrypto; then
+        if test "x$HAVE_LIBCRYPTO" = xyes; then
+                SHA1_LIBS=-lcrypto
+        else
+                SHA1_LIBS="$OPENSSL_LIBS"
+                SHA1_CFLAGS="$OPENSSL_CFLAGS"
+        fi
+fi
+if test "x$with_sha1" = x; then
+        AC_MSG_ERROR([No suitable SHA1 implementation found])
+fi
+AC_SUBST(SHA1_LIBS)
+AC_SUBST(SHA1_CFLAGS)
 
 PKG_CHECK_MODULES([XSERVERCFLAGS], [$REQUIRED_MODULES $REQUIRED_LIBS])
 PKG_CHECK_MODULES([XSERVERLIBS], [$REQUIRED_LIBS])
@@ -1326,7 +1389,7 @@ PKG_CHECK_MODULES([XSERVERLIBS], [$REQUIRED_LIBS])
 #
 XSERVER_CFLAGS="${XSERVERCFLAGS_CFLAGS} ${SHA1_CFLAGS}"
 XSERVER_LIBS="$DIX_LIB $CONFIG_LIB $MI_LIB $OS_LIB"
-XSERVER_SYS_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} ${LIBS} ${SHA1_LIB}"
+XSERVER_SYS_LIBS="${XSERVERLIBS_LIBS} ${SYS_LIBS} ${LIBS} ${SHA1_LIBS}"
 AC_SUBST([XSERVER_LIBS])
 AC_SUBST([XSERVER_SYS_LIBS])
 
@@ -1656,6 +1719,7 @@ if test "x$XORG" = xyes; then
 
 	dnl these only go in xorg-config.h
 	XF86CONFIGFILE="xorg.conf"
+	XF86CONFIGDIR="xorg.conf.d"
 	CONFIGFILE="$sysconfdir/$XF86CONFIGFILE"
 	LOGPREFIX="$logdir/Xorg."
 	AC_DEFINE(XORG_SERVER, 1, [Building Xorg server])
@@ -1668,7 +1732,9 @@ if test "x$XORG" = xyes; then
 	AC_DEFINE(__XSERVERNAME__, "Xorg", [Name of X server])
 	AC_DEFINE_DIR(__XCONFIGFILE__, XF86CONFIGFILE, [Name of configuration file])
 	AC_DEFINE_DIR(XF86CONFIGFILE, XF86CONFIGFILE, [Name of configuration file])
+	AC_DEFINE_DIR(__XCONFIGDIR__, XF86CONFIGDIR, [Name of configuration directory])
 	AC_DEFINE_DIR(DEFAULT_MODULE_PATH, moduledir, [Default module search path])
+	AC_DEFINE_DIR(EXTRA_MODULE_PATH, extra_moduledir, [Extra module search path, searched before the default one])
 	AC_DEFINE_DIR(DEFAULT_LIBRARY_PATH, libdir, [Default library install path])
 	AC_DEFINE_DIR(DEFAULT_LOGPREFIX, LOGPREFIX, [Default log location])
 	AC_DEFINE_UNQUOTED(__VENDORDWEBSUPPORT__, ["$VENDOR_WEB"], [Vendor web address for support])

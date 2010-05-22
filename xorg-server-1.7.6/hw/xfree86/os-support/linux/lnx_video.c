@@ -51,6 +51,7 @@
 #define MAP_FAILED ((void *)-1)
 #endif
 
+extern Bool NoHwAccess;
 static Bool ExtendedEnabled = FALSE;
 
 #ifdef __ia64__
@@ -501,6 +502,9 @@ xf86EnableIO(void)
 	int fd;
 	unsigned int ioBase_phys;
 #endif
+	/* Fake it... */
+	if (NoHwAccess)
+		return TRUE;
 
 	if (ExtendedEnabled)
 		return TRUE;

@@ -2251,6 +2251,12 @@ ChangeDeviceControl(register ClientPtr client, DeviceIntPtr pDev,
 int
 NewInputDeviceRequest(InputOption *options, DeviceIntPtr *pdev)
 {
+    return NewInputDeviceRequest18(options, NULL, pdev);
+}
+int
+NewInputDeviceRequest18(InputOption *options, InputAttributes *attrs,
+                      DeviceIntPtr *pdev)
+{
     InputOption *option = NULL;
     KdPointerInfo *pi = NULL;
     KdKeyboardInfo *ki = NULL;
@@ -2277,6 +2283,14 @@ NewInputDeviceRequest(InputOption *options, DeviceIntPtr *pdev)
                  strcmp(option->value, "server/hal") == 0)
         {
             ErrorF("Ignoring device from HAL.\n");
+            return BadValue;
+        }
+#endif
+#ifdef CONFIG_UDEV
+        else if (strcmp(option->key, "_source") == 0 &&
+                 strcmp(option->value, "server/udev") == 0)
+        {
+            ErrorF("Ignoring device from udev.\n");
             return BadValue;
         }
 #endif

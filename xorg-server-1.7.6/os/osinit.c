@@ -148,13 +148,13 @@ OsSigHandler(int signo)
           case SIGBUS:
           case SIGILL:
           case SIGFPE:
+	      signal(signo,SIG_DFL);
 	      ErrorF("%s at address %p\n", strsignal(signo), sip->si_addr);
       }
   }
 #endif
 
-  FatalError("Caught signal %d (%s). Server aborting\n",
-	     signo, strsignal(signo));
+  FatalSignal(signo);
 }
 
 void

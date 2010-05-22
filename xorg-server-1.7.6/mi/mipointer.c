@@ -139,6 +139,10 @@ miPointerCloseScreen (int index, ScreenPtr pScreen)
         if (DevHasCursor(pDev))
         {
             pPointer = MIPOINTER(pDev);
+            if (pPointer == NULL) {
+                ErrorF("miPointerCloseScreen: Invalid input device pointer\n");
+                return FALSE;
+            }
 
             if (pScreen == pPointer->pScreen)
                 pPointer->pScreen = 0;
@@ -191,6 +195,10 @@ miPointerDisplayCursor (DeviceIntPtr pDev, ScreenPtr pScreen, CursorPtr pCursor)
             return FALSE;
 
     pPointer = MIPOINTER(pDev);
+    if (pPointer == NULL) {
+        ErrorF("miPointerDisplayCursor: Invalid input device pointer\n");
+        return FALSE;
+    }
 
     pPointer->pCursor = pCursor;
     pPointer->pScreen = pScreen;
@@ -204,6 +212,10 @@ miPointerConstrainCursor (DeviceIntPtr pDev, ScreenPtr pScreen, BoxPtr pBox)
     miPointerPtr pPointer;
 
     pPointer = MIPOINTER(pDev);
+    if (pPointer == NULL) {
+        ErrorF("miPointerConstrainCursor: Invalid input device pointer\n");
+        return FALSE;
+    }
 
     pPointer->limits = *pBox;
     pPointer->confined = PointerConfinedToScreen(pDev);
@@ -306,6 +318,15 @@ miPointerWarpCursor (DeviceIntPtr pDev, ScreenPtr pScreen, int x, int y)
     SetupScreen (pScreen);
     pPointer = MIPOINTER(pDev);
 
+    /* Null pointer causes crash on keyrepeat with Xinerama LP: (#324465) */
+    if (pPointer == NULL)
+        return;
+
+    if (pPointer == NULL) {
+        ErrorF("miPointerWarpCursor: Invalid input device pointer\n");
+        return;
+    }
+
     if (pPointer->pScreen != pScreen)
     {
 	(*pScreenPriv->screenFuncs->NewEventScreen) (pDev, pScreen, TRUE);
@@ -366,6 +387,10 @@ miPointerUpdateSprite (DeviceIntPtr pDev)
         return;
 
     pPointer = MIPOINTER(pDev);
+    if (pPointer == NULL) {
+        ErrorF("miPointerUpdateSprite: Invalid input device pointer\n");
+        return;
+    }
 
     if (!pPointer)
         return;
@@ -436,12 +461,16 @@ miPointerSetScreen(DeviceIntPtr pDev, int screen_no, int x, int y)
 	ScreenPtr pScreen;
         miPointerPtr pPointer;
 
-        pPointer = MIPOINTER(pDev);
-
 	pScreen = screenInfo.screens[screen_no];
 	pScreenPriv = GetScreenPrivate (pScreen);
 	(*pScreenPriv->screenFuncs->NewEventScreen) (pDev, pScreen, FALSE);
 	NewCurrentScreen (pDev, pScreen, x, y);
+
+        pPointer = MIPOINTER(pDev);
+        if (pPointer == NULL) {
+            ErrorF("miPointerSetScreen: Invalid input device pointer\n");
+            return;
+        }
 
         pPointer->limits.x2 = pScreen->width;
         pPointer->limits.y2 = pScreen->height;
@@ -469,6 +498,10 @@ miPointerMoved (DeviceIntPtr pDev, ScreenPtr pScreen,
     SetupScreen(pScreen);
 
     pPointer = MIPOINTER(pDev);
+    if (pPointer == NULL) {
+        ErrorF("miPointerMoved: Invalid input device pointer\n");
+        return;
+    }
 
     /* Hack: We mustn't call into ->MoveCursor for anything but the
      * VCP, as this may cause a non-HW rendered cursor to be rendered during
@@ -498,6 +531,11 @@ miPointerSetPosition(DeviceIntPtr pDev, int *x, int *y)
     miPointerPtr        pPointer; 
 
     pPointer = MIPOINTER(pDev);
+    if (pPointer == NULL) {
+        ErrorF("miPointerSetPosition: Invalid input device pointer\n");
+        return;
+    }
+
     pScreen = pPointer->pScreen;
     if (!pScreen)
 	return;	    /* called before ready */

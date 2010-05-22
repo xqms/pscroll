@@ -363,6 +363,8 @@ xf86InterceptSigIll(void (*sigillhandler)(void))
 int
 xf86SigWrapper(int signo)
 {
+  static Bool beenhere = FALSE;
+
   if ((signo == SIGILL) && xf86SigIllHandler) {
     (*xf86SigIllHandler)();
     return 0; /* continue */

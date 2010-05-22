@@ -389,11 +389,12 @@ LogMessage(MessageType type, const char *format, ...)
 }
 
 #ifdef __GNUC__
+void SigAbortServer(int signo) __attribute__((noreturn));
 void AbortServer(void) __attribute__((noreturn));
 #endif
 
 void
-AbortServer(void)
+SigAbortServer(int signo)
 {
 #ifdef XF86BIGFONT
     XF86BigfontCleanup();
@@ -401,11 +402,21 @@ AbortServer(void)
     CloseWellKnownConnections();
     OsCleanup(TRUE);
     CloseDownDevices();
-    AbortDDX();
+    SigAbortDDX(signo);
     fflush(stderr);
-    if (CoreDump)
-	abort();
-    exit (1);
+    if (CoreDump) {
+        if (signo != 0)
+            raise(signo);
+        else
+            abort();
+    } else
+	exit (1);
+}
+
+void
+AbortServer(void)
+{
+    SigAbortServer(0);
 }
 
 #define AUDIT_PREFIX "AUDIT: %s: %ld: "
@@ -505,6 +516,27 @@ VAuditF(const char *f, va_list args)
     }
     if (prefix != NULL)
 	free(prefix);
+}
+
+void
+FatalSignal(int signo)
+{
+    static Bool beenhere = FALSE;
+
+    if (beenhere)
+	ErrorF("\nFatalSignal re-entered, aborting\n");
+    else
+	ErrorF("\nCaught signal %d (%s). Server aborting\n",
+               signo, strsignal(signo));
+
+    if (!beenhere)
+	OsVendorFatalError();
+    if (!beenhere) {
+	beenhere = TRUE;
+	SigAbortServer(signo);
+    } else
+	abort();
+    /*NOTREACHED*/
 }
 
 void

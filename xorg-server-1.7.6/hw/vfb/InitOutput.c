@@ -66,6 +66,7 @@ from The Open Group.
 #endif /* HAS_SHM */
 #include "dix.h"
 #include "miline.h"
+#include "randrstr.h"
 
 #define VFB_DEFAULT_WIDTH      1280
 #define VFB_DEFAULT_HEIGHT     1024
@@ -214,9 +215,15 @@ ddxGiveUp(void)
 }
 
 void
-AbortDDX(void)
+SigAbortDDX(int signo)
 {
     ddxGiveUp();
+}
+
+void
+AbortDDX(void)
+{
+    SigAbortDDX(0);
 }
 
 #ifdef __APPLE__
@@ -249,7 +256,7 @@ ddxUseMsg(void)
     ErrorF("-screen scrn WxHxD     set screen's width, height, depth\n");
     ErrorF("-pixdepths list-of-int support given pixmap depths\n");
 #ifdef RENDER
-    ErrorF("+/-render		   turn on/of RENDER extension support"
+    ErrorF("+/-render		   turn on/off RENDER extension support"
 	   "(default on)\n");
 #endif
     ErrorF("-linebias n            adjust thin line pixelization\n");
@@ -904,12 +911,18 @@ vfbScreenInit(int index, ScreenPtr pScreen, int argc, char **argv)
 
     ret = fbScreenInit(pScreen, pbits, pvfb->width, pvfb->height,
 		       dpix, dpiy, pvfb->paddedWidth,pvfb->bitsPerPixel);
+    if (!ret) return FALSE;
+
 #ifdef RENDER
-    if (ret && Render) 
+    if (Render) 
 	fbPictureInit (pScreen, 0, 0);
 #endif
 
-    if (!ret) return FALSE;
+    if (!miRandRInit(pScreen))
+        /* Not sure how to emit warnings in xorg. Should warn here though:
+	 * ("Could not initialise RANDR\n");
+	 */
+        return FALSE;
 
     miInitializeBackingStore(pScreen);
 

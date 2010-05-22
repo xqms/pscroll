@@ -804,12 +804,12 @@ void ddxGiveUp( void )
 
 
 /*
- * AbortDDX --
+ * [Sig]AbortDDX --
  *      DDX - specific abort routine.  Called by AbortServer(). The attempt is
  *      made to restore all original setting of the displays. Also all devices
  *      are closed.
  */
-void AbortDDX( void )
+void SigAbortDDX( void )
 {
     ErrorF( "   AbortDDX\n" );
     /*
@@ -817,6 +817,11 @@ void AbortDDX( void )
      * MUST also be performed (i.e. the vt must be left in a defined state)
      */
     ddxGiveUp();
+}
+
+void AbortDDX( void )
+{
+    SigAbortDDX(0);
 }
 
 #include "mivalidate.h" // for union _Validate used by windowstr.h

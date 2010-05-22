@@ -234,7 +234,7 @@ Bool RRScreenInit(ScreenPtr pScreen)
     /*
      * Calling function best set these function vectors
      */
-    pScrPriv->rrGetInfo = 0;
+    pScrPriv->rrGetInfo = NULL;
     pScrPriv->maxWidth = pScrPriv->minWidth = pScreen->width;
     pScrPriv->maxHeight = pScrPriv->minHeight = pScreen->height;
     

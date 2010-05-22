@@ -175,6 +175,11 @@ static Bool quirk_detailed_v_in_cm (int scrnIndex, xf86MonPtr DDC)
 	DDC->vendor.prod_id == 1157)
 	return TRUE;
 
+    /* LP #380009: HP Compaq NC8430 LP154W01-TLA8 */
+    if (memcmp (DDC->vendor.name, "LPL", 4) == 0 &&
+        DDC->vendor.prod_id == 5750)
+        return TRUE;
+
     return FALSE;
 }
 

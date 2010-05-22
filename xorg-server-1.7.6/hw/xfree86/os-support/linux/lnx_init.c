@@ -43,6 +43,7 @@ static Bool KeepTty = FALSE;
 static int VTnum = -1;
 static Bool VTSwitch = TRUE;
 static Bool ShareVTs = FALSE;
+Bool NoHwAccess = FALSE;
 static int activeVT = -1;
 
 static int vtPermSave[4];
@@ -353,10 +354,25 @@ xf86CloseConsole(void)
 
     if (VTSwitch)
     {
+        struct vt_stat vts;
+
         /*
-         * Perform a switch back to the active VT when we were started
+         * Perform a switch back to the active VT when we were started.
+         * We cannot rely on vtSema to determine if the server was the
+         * active VT at the time of shutdown since it has already been
+         * released.  Instead, we manually check the current VT and
+         * compare it with the VT we were running on.
          */
-        if (activeVT >= 0) {
+        if (ioctl(xf86Info.consoleFd, VT_GETSTATE, &vts) < 0)
+        {
+            /* If this failed, fall back to old behaviour
+             * of always switching. */
+            xf86Msg(X_WARNING,"xf86OpenConsole: VT_GETSTATE failed: %s\n",
+                    strerror(errno));
+            vts.v_active = xf86Info.vtno;
+        }
+
+        if (activeVT >= 0 && vts.v_active == xf86Info.vtno) {
 	    if (ioctl(xf86Info.consoleFd, VT_ACTIVATE, activeVT) < 0)
 	        xf86Msg(X_WARNING, "xf86CloseConsole: VT_ACTIVATE failed: %s\n",
 		        strerror(errno));
@@ -402,6 +418,11 @@ xf86ProcessArgument(int argc, char *argv[], int i)
                 ShareVTs = TRUE;
                 return(1);
         }
+	if (!strcmp(argv[i], "-nohwaccess"))
+	{
+		NoHwAccess = TRUE;
+		return(1);
+	}
 	if ((argv[i][0] == 'v') && (argv[i][1] == 't'))
 	{
 		if (sscanf(argv[i], "vt%2d", &VTnum) == 0)
@@ -423,5 +444,6 @@ xf86UseMsg(void)
 	ErrorF("don't detach controlling tty (for debugging only)\n");
         ErrorF("-novtswitch            don't immediately switch to new VT\n");
         ErrorF("-sharevts              share VTs with another X server\n");
+	ErrorF("-nohwaccess            don't access hardware ports directly\n");
 	return;
 }

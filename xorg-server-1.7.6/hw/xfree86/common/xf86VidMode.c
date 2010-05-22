@@ -220,6 +220,9 @@ VidModeGetFirstModeline(int scrnIndex, pointer *mode, int *dotClock)
 
     pScrn = xf86Screens[scrnIndex];
     pVidMode = VMPTR(pScrn->pScreen);
+    if (pScrn->modes == NULL)
+        return FALSE;
+
     pVidMode->First = pScrn->modes;
     pVidMode->Next =  pVidMode->First->next;
 

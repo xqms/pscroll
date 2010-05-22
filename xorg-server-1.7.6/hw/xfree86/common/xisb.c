@@ -98,6 +98,9 @@ XisbRead (XISBuffer *b)
 {
 	int ret;
 
+        if (b == NULL)
+            return -2;
+
 	if (b->current >= b->end)
 	{
 		if (b->block_duration >= 0)

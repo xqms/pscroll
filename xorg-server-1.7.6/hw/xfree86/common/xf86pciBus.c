@@ -141,8 +141,8 @@ xf86PciProbe(void)
 		    primaryBus.id.pci = info;
 		} else {
 		    xf86Msg(X_NOTICE,
-			    "More than one possible primary device found\n");
-		    primaryBus.type ^= (BusType)(-1);
+			    "More than one possible primary device found.  Using first one seen.\n");
+                    break;
 		}
 	    }
 	}

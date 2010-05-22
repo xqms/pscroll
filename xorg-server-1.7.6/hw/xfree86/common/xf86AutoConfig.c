@@ -44,6 +44,10 @@
 #endif
 #include "dirent.h"
 
+#if defined(__arm__) && defined(__linux__)
+# include "loaderProcs.h"
+#endif
+
 #ifdef sun
 # include <sys/visual_io.h>
 # include <ctype.h>
@@ -179,6 +183,7 @@ videoPtrToDriverList(struct pci_device *dev,
 	case 0x1002:		    driverList[0] = "ati"; break;
 	case 0x102c:		    driverList[0] = "chips"; break;
 	case 0x1013:		    driverList[0] = "cirrus"; break;
+	case 0x1234:		    driverList[0] = "vesa"; break; /* qemu device not supported by cirrus */
 	case 0x3d3d:		    driverList[0] = "glint"; break;
 	case 0x105d:		    driverList[0] = "i128"; break;
 	case 0x8086:
@@ -192,7 +197,36 @@ videoPtrToDriverList(struct pci_device *dev,
 	    break;
 	case 0x102b:		    driverList[0] = "mga";	break;
 	case 0x10c8:		    driverList[0] = "neomagic"; break;
-	case 0x10de: case 0x12d2:   driverList[0] = "nv";	break;
+	case 0x10de: case 0x12d2:
+	    switch (dev->device_id) {
+	    /* NV1 - NV2 are unsupported by nouveau, or nv */
+	    case 0x0008:
+	    case 0x0009:
+	    case 0x0010:
+	        driverList[0] = "vesa";
+		break;
+	    /* NV3 is supported by nv */
+	    case 0x0018:
+	    case 0x0019:
+	        driverList[0] = "nv";
+		break;
+	    /* Everything else is supported by nouveau */
+	    default:
+	        switch (dev->device_id & 0xfff0) {
+		/* These integrated cards apparently don't work with the
+		   nv driver.  Nouveau does support them */
+		case 0x0840:
+		case 0x0860:
+		    driverList[0] = "nouveau";
+		    break;
+		default:
+		    driverList[0] = "nouveau";
+		    driverList[1] = "nv";
+		    break;
+		}
+		break;
+	    }
+	    break;
 	case 0x1106:		    driverList[0] = "openchrome"; break;
 	case 0x1163:		    driverList[0] = "rendition"; break;
 	case 0x5333:
@@ -272,7 +306,8 @@ xf86AutoConfig(void)
     for (cp = builtinConfig; *cp; cp++)
 	xf86ErrorFVerb(3, "\t%s", *cp);
     xf86MsgVerb(X_DEFAULT, 3, "--- End of built-in configuration ---\n");
-    
+
+    xf86initConfigFiles();
     xf86setBuiltinConfig(builtinConfig);
     ret = xf86HandleConfigFile(TRUE);
     FreeConfig();
@@ -404,6 +439,28 @@ matchDriverFromFiles (char** matches, uint16_t match_vendor, uint16_t match_chip
 }
 #endif /* __linux__ */
 
+#if defined(__arm__) && defined(__linux__)
+static int
+test_sysfs_device (char * device_name, char * driver_name)
+{
+    DIR* dir = opendir("/sys/devices/platform");
+    struct dirent *current_dir;
+    int len = strlen(device_name);
+
+    while (current_dir = readdir(dir)) {
+        if (strlen(current_dir->d_name) >= len && strncmp(device_name, current_dir->d_name, len) == 0)
+            break;
+    }
+    closedir(dir);
+    if(!current_dir)
+        return 0;
+
+    if (!LoadModule(driver_name, NULL, NULL, NULL, NULL, NULL, NULL, NULL))
+        return 0;
+    return 1;
+}
+#endif /* defined(__arm__) && defined(__linux__) */
+
 static void
 listPossibleVideoDrivers(char *matches[], int nmatches)
 {
@@ -515,7 +572,18 @@ listPossibleVideoDrivers(char *matches[], int nmatches)
 #if !defined(__linux__) && defined(__sparc__)
 	matches[i++] = xnfstrdup("wsfb");
 #else
+#if defined(__linux__) && defined(__arm__)
+        if (test_sysfs_device("mxc_gpu", "imx"))
+           matches[i++] = xnfstrdup("imx");
+        else if (test_sysfs_device("dovefb", "dovefb"))
+           matches[i++] = xnfstrdup("dovefb");
+        else if (test_sysfs_device("omapfb", "omapfb"))
+           matches[i++] = xnfstrdup("omapfb");
+        else
+	    matches[i++] = xnfstrdup("fbdev");
+#else
 	matches[i++] = xnfstrdup("fbdev");
+#endif /* defined(__linux__) && defined(__arm__) */
 #endif
     }
 }
@@ -544,10 +612,41 @@ chooseVideoDriver(void)
     return chosen_driver;
 }
 
+
+/* copy a screen section and enter the desired driver
+ * and insert it at i in the list of screens */
+static Bool
+copyScreen(confScreenPtr oscreen, GDevPtr odev, int i, char *driver)
+{
+    GDevPtr cptr = NULL;
+
+    xf86ConfigLayout.screens[i].screen = xnfcalloc(1, sizeof(confScreenRec));
+    if(!xf86ConfigLayout.screens[i].screen)
+        return FALSE;
+    memcpy(xf86ConfigLayout.screens[i].screen, oscreen, sizeof(confScreenRec));
+
+    cptr = xcalloc(1, sizeof(GDevRec));
+    if (!cptr)
+        return FALSE;
+    memcpy(cptr, odev, sizeof(GDevRec));
+
+    cptr->identifier = Xprintf("Autoconfigured Video Device %s", driver);
+    cptr->driver = driver;
+
+    /* now associate the new driver entry with the new screen entry */
+    xf86ConfigLayout.screens[i].screen->device = cptr;
+    cptr->myScreenSection = xf86ConfigLayout.screens[i].screen;
+
+    return TRUE;
+}
+
 GDevPtr
 autoConfigDevice(GDevPtr preconf_device)
 {
     GDevPtr ptr = NULL;
+    char *matches[20]; /* If we have more than 20 drivers we're in trouble */
+    int num_matches = 0, num_screens = 0, i;
+    screenLayoutPtr slp;
 
     if (!xf86configptr) {
         return NULL;
@@ -571,14 +670,59 @@ autoConfigDevice(GDevPtr preconf_device)
         ptr->driver = NULL;
     }
     if (!ptr->driver) {
-        ptr->driver = chooseVideoDriver();
+        /* get all possible video drivers and count them */
+        listPossibleVideoDrivers(matches, 20);
+        for (; matches[num_matches]; num_matches++) {
+            xf86Msg(X_DEFAULT, "Matched %s as autoconfigured driver %d\n",
+                    matches[num_matches], num_matches);
+        }
+
+        slp = xf86ConfigLayout.screens;
+        if (slp) {
+            /* count the number of screens and make space for
+             * a new screen for each additional possible driver
+             * minus one for the already existing first one
+             * plus one for the terminating NULL */
+            for (; slp[num_screens].screen; num_screens++);
+            xf86ConfigLayout.screens = xnfcalloc(num_screens + num_matches,
+                                                sizeof(screenLayoutRec));
+            xf86ConfigLayout.screens[0] = slp[0];
+
+            /* do the first match and set that for the original first screen */
+            ptr->driver = matches[0];
+            if (!xf86ConfigLayout.screens[0].screen->device) {
+                xf86ConfigLayout.screens[0].screen->device = ptr;
+                ptr->myScreenSection = xf86ConfigLayout.screens[0].screen;
+            }
+
+            /* for each other driver found, copy the first screen, insert it
+             * into the list of screens and set the driver */
+            i = 0;
+            while (i++ < num_matches) {
+                if (!copyScreen(slp[0].screen, ptr, i, matches[i]))
+                    return NULL;
+            }
+
+            /* shift the rest of the original screen list
+             * to the end of the current screen list
+             *
+             * TODO Handle rest of multiple screen sections */
+            for (i = 1; i < num_screens; i++) {
+                xf86ConfigLayout.screens[i+num_matches] = slp[i];
+            }
+            xf86ConfigLayout.screens[num_screens+num_matches-1].screen = NULL;
+            xfree(slp);
+        } else {
+            /* layout does not have any screens, not much to do */
+            ptr->driver = matches[0];
+            for (i = 1; matches[i] ; i++) {
+                if (matches[i] != matches[0]) {
+                    xfree(matches[i]);
+                }
+            }
+        }
     }
 
-    /* TODO Handle multiple screen sections */
-    if (xf86ConfigLayout.screens && !xf86ConfigLayout.screens->screen->device) {
-        xf86ConfigLayout.screens->screen->device = ptr;
-        ptr->myScreenSection = xf86ConfigLayout.screens->screen;
-    }
     xf86Msg(X_DEFAULT, "Assigned the driver to the xf86ConfigLayout\n");
 
     return ptr;

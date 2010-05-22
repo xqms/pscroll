@@ -280,11 +280,13 @@ SecurityComputeAuthorizationTimeout(
      * 32 bits worth of milliseconds
      */
     CARD32 maxSecs = (CARD32)(~0) / (CARD32)MILLI_PER_SECOND;
+    CARD32 nowSec = GetTimeInMillis()/ (CARD32)MILLI_PER_SECOND;
 
-    if (seconds > maxSecs)
-    { /* only come here if we want to wait more than 49 days */
-	pAuth->secondsRemaining = seconds - maxSecs;
-	return maxSecs * MILLI_PER_SECOND;
+    CARD32 maxPossibleSec = maxSecs - nowSec;
+    if (seconds > maxPossibleSec -1 )
+    {
+	pAuth->secondsRemaining = seconds - maxPossibleSec;
+	return maxPossibleSec * MILLI_PER_SECOND;
     }
     else
     { /* by far the common case */

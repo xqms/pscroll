@@ -163,6 +163,12 @@
 /* Define to use libmd SHA1 functions instead of OpenSSL libcrypto */
 #undef HAVE_SHA1_IN_LIBMD
 
+/* Define to use libgcrypt SHA1 functions instead of OpenSSL libcrypto */
+#undef HAVE_SHA1_IN_LIBGCRYPT
+
+/* Define to use libnettle SHA1 functions instead of OpenSSL libcrypto */
+#undef HAVE_SHA1_IN_LIBNETTLE
+
 /* Define to 1 if you have the `shmctl64' function. */
 #undef HAVE_SHMCTL64
 
@@ -218,6 +224,9 @@
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
+
+/* Define to 1 if you have the <fnmatch.h> header file. */
+#undef HAVE_FNMATCH_H
 
 /* Have /dev/urandom */
 #undef HAVE_URANDOM
@@ -383,6 +392,9 @@
 
 /* Support D-Bus */
 #undef HAVE_DBUS
+
+/* Use libudev for input hotplug */
+#undef CONFIG_UDEV
 
 /* Use D-Bus for input hotplug */
 #undef CONFIG_NEED_DBUS

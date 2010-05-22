@@ -112,10 +112,15 @@ InitInput(int argc, char *argv[])
 /*
  * DDX - specific abort routine.  Called by AbortServer().
  */
-void AbortDDX(void)
+void SigAbortDDX(int signo)
 {
   xnestDoFullGeneration = True;
   xnestCloseDisplay();
+}
+
+void AbortDDX(void)
+{
+    SigAbortDDX(0);
 }
 
 /* Called by GiveUp(). */

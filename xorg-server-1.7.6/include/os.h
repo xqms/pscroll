@@ -434,7 +434,9 @@ typedef struct {
 /* stuff for FlushCallback */
 extern _X_EXPORT CallbackListPtr FlushCallback;
 
+extern _X_EXPORT void SigAbortDDX(int signo);
 extern _X_EXPORT void AbortDDX(void);
+extern _X_EXPORT void ddxSigGiveUp(int signo);
 extern _X_EXPORT void ddxGiveUp(void);
 extern _X_EXPORT int TimeSinceLastInputEvent(void);
 

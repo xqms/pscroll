@@ -46,6 +46,7 @@
  * The global state of these things is held in xf86InfoRec (when appropriate).
  */
 extern _X_EXPORT const char *xf86ConfigFile;
+extern _X_EXPORT const char *xf86ConfigDir;
 extern _X_EXPORT  Bool xf86AllowMouseOpenFail;
 #ifdef XF86VIDMODE
 extern _X_EXPORT  Bool xf86VidModeDisabled;
@@ -77,6 +78,7 @@ extern _X_EXPORT  struct pci_slot_match xf86IsolateDevice;
 
 extern _X_EXPORT  xf86InfoRec xf86Info;
 extern _X_EXPORT  const char *xf86ModulePath;
+extern _X_EXPORT  const char *xf86ExtraModulePath;
 extern _X_EXPORT  MessageType xf86ModPathFrom;
 extern _X_EXPORT  const char *xf86LogFile;
 extern _X_EXPORT  MessageType xf86LogFileFrom;

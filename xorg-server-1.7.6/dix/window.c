@@ -466,22 +466,24 @@ InitRootWindow(WindowPtr pWin)
     pWin->optional->cursor = rootCursor;
     rootCursor->refcnt++;
 
+    pWin->backingStore = defaultBackingStore;
+    pWin->forcedBS = (defaultBackingStore != NotUseful);
 
     if (party_like_its_1989) {
         MakeRootTile(pWin);
         backFlag |= CWBackPixmap;
+        pScreen->ChangeWindowAttributes(pWin, backFlag);
+    } else if (bgNoneRoot) {
+       /* nothing, handled in xf86CreateRootWindow */
     } else {
 	if (whiteRoot)
             pWin->background.pixel = pScreen->whitePixel;
         else
             pWin->background.pixel = pScreen->blackPixel;
         backFlag |= CWBackPixel;
-    } 
 
-    pWin->backingStore = defaultBackingStore;
-    pWin->forcedBS = (defaultBackingStore != NotUseful);
-    /* We SHOULD check for an error value here XXX */
-    (*pScreen->ChangeWindowAttributes)(pWin, backFlag);
+        pScreen->ChangeWindowAttributes(pWin, backFlag);
+    }
 
     MapWindow(pWin, serverClient);
 }

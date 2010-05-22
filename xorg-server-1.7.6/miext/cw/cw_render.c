@@ -125,10 +125,15 @@ cwGetBackingPicture (PicturePtr pPicture, int *x_off, int *y_off)
 	WindowPtr   pWindow = (WindowPtr) pDrawable;
 	PixmapPtr   pPixmap = getCwPixmap (pWindow);
 
-	*x_off = pDrawable->x - pPixmap->screen_x;
-	*y_off = pDrawable->y - pPixmap->screen_y;
+        if (pDrawable && pPixmap) {
+            *x_off = pDrawable->x - pPixmap->screen_x;
+            *y_off = pDrawable->y - pPixmap->screen_y;
 
-	return pPicturePrivate->pBackingPicture;
+            return pPicturePrivate->pBackingPicture;
+        } else {
+            *x_off = *y_off = 0;
+            return pPicture;
+        }
     }
     else
     {

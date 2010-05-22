@@ -834,7 +834,7 @@ static void dmxSetDefaultFontPath(char *fp)
 /** This function is called in Xserver/os/utils.c from \a AbortServer().
  * We must ensure that backend and console state is restored in the
  * event the server shutdown wasn't clean. */
-void AbortDDX(void)
+void SigAbortDDX(int signo)
 {
     int i;
 
@@ -844,6 +844,11 @@ void AbortDDX(void)
         if (dmxScreen->beDisplay) XCloseDisplay(dmxScreen->beDisplay);
         dmxScreen->beDisplay = NULL;
     }
+}
+
+void AbortDDX(void)
+{
+    SigAbortDDX(0);
 }
 
 /** This function is called in Xserver/dix/main.c from \a main() when

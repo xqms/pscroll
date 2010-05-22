@@ -36,6 +36,9 @@
 /* Use D-Bus for input hotplug */
 #undef CONFIG_NEED_DBUS
 
+/* Use libudev for input hotplug */
+#undef CONFIG_UDEV
+
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
    */
@@ -94,6 +97,9 @@
 
 /* Default DRI driver path */
 #undef DRI_DRIVER_PATH
+
+/* Extra module search path, searched before the default one */
+#undef EXTRA_MODULE_PATH
 
 /* Build GLX extension */
 #undef GLXEXT
@@ -190,6 +196,9 @@
 /* Define to 1 if you have the `ffs' function. */
 #undef HAVE_FFS
 
+/* Define to 1 if you have the <fnmatch.h> header file. */
+#undef HAVE_FNMATCH_H
+
 /* Define to 1 if you have the `geteuid' function. */
 #undef HAVE_GETEUID
 
@@ -274,8 +283,14 @@
 /* Define to 1 if you have the <SDL/SDL.h> header file. */
 #undef HAVE_SDL_SDL_H
 
-/* Use libmd SHA1 functions instead of OpenSSL libcrypto */
+/* Use libgcrypt SHA1 functions */
+#undef HAVE_SHA1_IN_LIBGCRYPT
+
+/* Use libmd SHA1 functions */
 #undef HAVE_SHA1_IN_LIBMD
+
+/* Use libnettle SHA1 functions */
+#undef HAVE_SHA1_IN_LIBNETTLE
 
 /* Define to 1 if you have the `shmctl64' function. */
 #undef HAVE_SHMCTL64
@@ -438,6 +453,9 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
@@ -729,6 +747,9 @@
 
 /* Vendor web address for support */
 #undef __VENDORDWEBSUPPORT__
+
+/* Name of configuration directory */
+#undef __XCONFIGDIR__
 
 /* Name of configuration file */
 #undef __XCONFIGFILE__

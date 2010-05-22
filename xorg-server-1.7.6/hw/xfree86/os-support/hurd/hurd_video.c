@@ -124,8 +124,6 @@ xf86EnableIO()
 	FatalError("xf86EnableIO: ioperm() failed (%s)\n", strerror(errno));
 	return FALSE;
     }
-    ioperm(0x40,4,0); /* trap access to the timer chip */
-    ioperm(0x60,4,0); /* trap access to the keyboard controller */
     return TRUE;
 }
 	

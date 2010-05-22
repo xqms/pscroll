@@ -968,6 +968,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
     const __DRIconfig **driConfigs;
     const __DRIextension **extensions;
     int i;
+    int from = X_ERROR;
 
     if (!xf86LoaderCheckSymbol("DRIQueryDirectRenderingCapable") ||
 	!DRIQueryDirectRenderingCapable(pScreen, &isCapable) ||
@@ -1047,7 +1048,9 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
 
     screen->driver = dlopen(filename, RTLD_LAZY | RTLD_LOCAL);
     if (screen->driver == NULL) {
-	LogMessage(X_ERROR, "AIGLX error: dlopen of %s failed (%s)\n",
+	if (!strcmp(driverName, "nouveau"))
+	    from = X_INFO;
+	LogMessage(from, "AIGLX error: dlopen of %s failed (%s)\n",
 		   filename, dlerror());
         goto handle_error;
     }
@@ -1184,7 +1187,7 @@ __glXDRIscreenProbe(ScreenPtr pScreen)
 
     xfree(screen);
 
-    LogMessage(X_ERROR, "AIGLX: reverting to software rendering\n");
+    LogMessage(from, "AIGLX: reverting to software rendering\n");
 
     return NULL;
 }

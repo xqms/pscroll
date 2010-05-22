@@ -28,6 +28,10 @@
 
 #ifdef HAVE_SHA1_IN_LIBMD /* Use libmd for SHA1 */
 # include <sha1.h>
+#elif defined(HAVE_SHA1_IN_LIBGCRYPT)
+# include <gcrypt.h>
+#elif defined(HAVE_SHA1_IN_LIBNETTLE)
+# include <nettle/sha.h>
 #else /* Use OpenSSL's libcrypto */
 # include <stddef.h>  /* buggy openssl/sha.h wants size_t */
 # include <openssl/sha.h>
@@ -205,6 +209,33 @@ HashGlyph (xGlyphInfo    *gi,
     SHA1Update (&ctx, gi, sizeof (xGlyphInfo));
     SHA1Update (&ctx, bits, size);
     SHA1Final (sha1, &ctx);
+#elif defined(HAVE_SHA1_IN_LIBGCRYPT) /* Use libgcrypt for SHA1 */
+    static int init;
+    gcry_md_hd_t h;
+    gcry_error_t err;
+
+    if (!init) {
+	if (!gcry_check_version(NULL))
+	    return BadAlloc;
+	gcry_control(GCRYCTL_DISABLE_SECMEM, 0);
+	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
+	init = 1;
+    }
+
+    err = gcry_md_open(&h, GCRY_MD_SHA1, 0);
+    if (err)
+	return BadAlloc;
+    gcry_md_write(h, gi, sizeof (xGlyphInfo));
+    gcry_md_write(h, bits, size);
+    memcpy(sha1, gcry_md_read(h, GCRY_MD_SHA1), 20);
+    gcry_md_close(h);
+#elif HAVE_SHA1_IN_LIBNETTLE
+    struct sha1_ctx ctx;
+
+    sha1_init(&ctx);
+    sha1_update(&ctx, sizeof (xGlyphInfo), gi);
+    sha1_update(&ctx, size, bits);
+    sha1_digest(&ctx, 20, sha1);
 #else /* Use OpenSSL's libcrypto */
     SHA_CTX ctx;
     int success;
@@ -234,6 +265,9 @@ FindGlyphByHash (unsigned char sha1[20], int format)
 {
     GlyphRefPtr gr;
     CARD32 signature = *(CARD32 *) sha1;
+
+    if (!globalGlyphs[format].hashSet)
+	return NULL;
 
     gr = FindGlyphRef (&globalGlyphs[format],
 		       signature, TRUE, sha1);

@@ -946,7 +946,8 @@ xf86RandR12SetRotations (ScreenPtr pScreen, Rotation rotations)
     for (c = 0; c < config->num_crtc; c++) {
 	xf86CrtcPtr    crtc = config->crtc[c];
 
-	RRCrtcSetRotations (crtc->randr_crtc, rotations);
+        if (crtc != NULL)
+            RRCrtcSetRotations (crtc->randr_crtc, rotations);
     }
 #endif
     randrp->supported_rotations = rotations;

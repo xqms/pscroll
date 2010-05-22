@@ -9,3 +9,5 @@ config.h.in
 config.sub
 configure
 autom4te.cache
+.pc
+stampdir

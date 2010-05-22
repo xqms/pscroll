@@ -108,6 +108,13 @@ NewInputDeviceRequest (InputOption *options, DeviceIntPtr *pdev)
     return BadRequest;
 }
 
+int
+NewInputDeviceRequest18 (InputOption *options, InputAttributes *attrs,
+                       DeviceIntPtr *pdev)
+{
+    return BadRequest;
+}
+
 void
 DeleteInputDeviceRequest(DeviceIntPtr pDev)
 {

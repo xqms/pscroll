@@ -168,7 +168,6 @@ int main(int argc, char *argv[], char *envp[])
 	InitBlockAndWakeupHandlers();
 	/* Perform any operating system dependent initializations you'd like */
 	OsInit();
-        config_init();
 	if(serverGeneration == 1)
 	{
 	    CreateWellKnownSockets();
@@ -256,6 +255,7 @@ int main(int argc, char *argv[], char *envp[])
         InitCoreDevices();
 	InitInput(argc, argv);
 	InitAndStartDevices();
+        config_init();
 
 	dixSaveScreens(serverClient, SCREEN_SAVER_FORCER, ScreenSaverReset);
 

@@ -124,6 +124,7 @@ FontPtr defaultFont;   /* not declared in dix.h to avoid including font.h in
 CursorPtr rootCursor;
 Bool party_like_its_1989 = FALSE;
 Bool whiteRoot = FALSE;
+Bool bgNoneRoot = FALSE;
 
 int cursorScreenDevPriv[MAXSCREENS];
 

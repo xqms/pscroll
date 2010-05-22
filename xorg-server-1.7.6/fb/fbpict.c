@@ -37,7 +37,7 @@
 #include "mipict.h"
 #include "fbpict.h"
 
-#define mod(a,b) ((b) == 1 ? 0 : (a) >= 0 ? (a) % (b) : (b) - (-a) % (b))
+#define mod(a,b) ((b) == 1 ? 0 : (a) >= 0 ? (a) % (b) : (b) - (-(a)) % (b))
 
 void
 fbWalkCompositeRegion (CARD8 op,
