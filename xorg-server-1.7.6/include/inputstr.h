@@ -216,6 +216,7 @@ typedef struct _AxisInfo {
     int		min_value;
     int		max_value;
     Atom	label;
+    Bool	no_integration;
 } AxisInfo, *AxisInfoPtr;
 
 typedef struct _ValuatorAccelerationRec {
