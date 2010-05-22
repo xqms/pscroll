@@ -341,6 +341,16 @@ EvdevQueueButtonClicks(InputInfoPtr pInfo, int button, int count)
 }
 
 /**
+ * Inject a relative motion delta for later event posting
+ */
+void
+EvdevInjectRelativeMotion(InputInfoPtr pInfo, int axis, int amount)
+{
+    EvdevPtr pEvdev = pInfo->private;
+    pEvdev->delta[axis] += amount;
+}
+
+/**
  * Coming back from resume may leave us with a file descriptor that can be
  * opened but fails on the first read (ENODEV).
  * In this case, try to open the device until it becomes available or until

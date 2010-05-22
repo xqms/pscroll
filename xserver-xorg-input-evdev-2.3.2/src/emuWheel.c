@@ -175,7 +175,10 @@ EvdevWheelEmuInertia(InputInfoPtr pInfo, WheelAxisPtr axis, int value)
 	button = axis->down_button;
 	inertia = pEvdev->emulateWheel.inertia;
     }
-
+    
+    /* Produce valuator events */
+    EvdevInjectRelativeMotion(pInfo, axis->code, axis->traveled_distance);
+    
     /* Produce button press events for wheel motion */
     while(abs(axis->traveled_distance) > pEvdev->emulateWheel.inertia) {
 	axis->traveled_distance -= inertia;
@@ -318,6 +321,10 @@ EvdevWheelEmuPreInit(InputInfoPtr pInfo)
     /* Used by the inertia code */
     pEvdev->emulateWheel.X.traveled_distance = 0;
     pEvdev->emulateWheel.Y.traveled_distance = 0;
+    
+    /* Valuator to post events to */
+    pEvdev->emulateWheel.X.code = REL_HWHEEL;
+    pEvdev->emulateWheel.Y.code = REL_WHEEL;
 
     xf86Msg(X_CONFIG, "%s: EmulateWheelButton: %d, "
             "EmulateWheelInertia: %d, "

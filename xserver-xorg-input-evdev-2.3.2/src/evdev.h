@@ -87,6 +87,7 @@ typedef struct {
     int up_button;
     int down_button;
     int traveled_distance;
+    int code;
 } WheelAxis, *WheelAxisPtr;
 
 /* Event queue used to defer keyboard/button events until EV_SYN time. */
@@ -192,6 +193,8 @@ void EvdevPostRelativeMotionEvents(InputInfoPtr pInfo, int *num_v, int *first_v,
 void EvdevPostAbsoluteMotionEvents(InputInfoPtr pInfo, int *num_v, int *first_v,
 				   int v[MAX_VALUATORS]);
 unsigned int EvdevUtilButtonEventToButtonNumber(EvdevPtr pEvdev, int code);
+
+void EvdevInjectRelativeMotion(InputInfoPtr pInfo, int axis, int amount);
 
 /* Middle Button emulation */
 int  EvdevMBEmuTimer(InputInfoPtr);
