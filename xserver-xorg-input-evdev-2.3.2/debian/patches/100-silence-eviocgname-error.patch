@@ -1,0 +1,25 @@
+From 3a06d505b3b1eaecc6e55aedd22106655d73f12a Mon Sep 17 00:00:00 2001
+From: Robert Hooker <sarvatt@ubuntu.com>
+Date: Tue, 23 Feb 2010 22:53:52 -0500
+Subject: [PATCH] Silence EVIOCGNAME error.
+
+---
+ src/evdev.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/src/evdev.c b/src/evdev.c
+index 58ffcea..f9aae2c 100644
+--- a/src/evdev.c
++++ b/src/evdev.c
+@@ -1656,7 +1656,7 @@ EvdevCacheCompare(InputInfoPtr pInfo, BOOL compare)
+     unsigned long led_bitmask[NLONGS(LED_CNT)] = {0};
+ 
+     if (ioctl(pInfo->fd, EVIOCGNAME(sizeof(name) - 1), name) < 0) {
+-        xf86Msg(X_ERROR, "ioctl EVIOCGNAME failed: %s\n", strerror(errno));
++        /* xf86Msg(X_ERROR, "ioctl EVIOCGNAME failed: %s\n", strerror(errno)); */
+         goto error;
+     }
+ 
+-- 
+1.7.0
+
