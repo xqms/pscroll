@@ -1,0 +1,13 @@
+Index: xorg-server-1.6.5/hw/xfree86/modes/xf86Cursors.c
+===================================================================
+--- xorg-server-1.6.5.orig/hw/xfree86/modes/xf86Cursors.c	2009-11-29 15:16:23.000000000 -0500
++++ xorg-server-1.6.5/hw/xfree86/modes/xf86Cursors.c	2009-11-29 15:16:34.000000000 -0500
+@@ -612,7 +612,7 @@
+     cursor_screen_priv = dixLookupPrivate(&screen->devPrivates,
+ 					  xf86CursorScreenKey);
+     /* return if HW cursor is inactive, to avoid displaying two cursors */
+-    if (!cursor_screen_priv->isUp)
++    if (!cursor_screen_priv || !cursor_screen_priv->isUp)
+ 	return;
+ 
+     scrn = xf86Screens[screen->myNum];

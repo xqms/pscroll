@@ -1,0 +1,99 @@
+From 416a66de9d428a11776331926c23a61188b8fc16 Mon Sep 17 00:00:00 2001
+From: Ander Conselvan de Oliveira <ander@localhost.(none)>
+Date: Thu, 12 Mar 2009 09:45:57 -0300
+Subject: [PATCH 908/911] Xorg: add an extra module path
+
+If the extra module path is not an empty string (the default value),
+module path will be searched first in the extra module path and then in
+the default module path. This should simplify the alternatives system
+used on Mandriva's fglrx package.
+---
+diff --git a/configure.ac b/configure.ac
+index 10cf26f..2ab3bf7 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -471,6 +471,10 @@ AC_ARG_WITH(module-dir,      AS_HELP_STRING([--with-module-dir=DIR],
+ 				  [Directory where modules are installed (default: $libdir/xorg/modules)]),
+ 				[ moduledir="$withval" ],
+ 				[ moduledir="${libdir}/xorg/modules" ])
++AC_ARG_WITH(extra-module-dir,AS_HELP_STRING([--with-extra-module-dir=DIR],
++				  [Extra module directory to search for modules before the default one (default: empty)]),
++				[ extra_moduledir="$withval" ],
++				[ extra_moduledir="" ])
+ AC_ARG_WITH(log-dir,         AS_HELP_STRING([--with-log-dir=DIR],
+ 				  [Directory where log files are kept (default: $localstatedir/log)]),
+ 				[ logdir="$withval" ],
+@@ -1673,6 +1677,7 @@ if test "x$XORG" = xyes; then
+ 	AC_DEFINE_DIR(__XCONFIGFILE__, XF86CONFIGFILE, [Name of configuration file])
+ 	AC_DEFINE_DIR(XF86CONFIGFILE, XF86CONFIGFILE, [Name of configuration file])
+ 	AC_DEFINE_DIR(DEFAULT_MODULE_PATH, moduledir, [Default module search path])
++	AC_DEFINE_DIR(EXTRA_MODULE_PATH, extra_moduledir, [Extra module search path, searched before the default one])
+ 	AC_DEFINE_DIR(DEFAULT_LIBRARY_PATH, libdir, [Default library install path])
+ 	AC_DEFINE_DIR(DEFAULT_LOGPREFIX, LOGPREFIX, [Default log location])
+ 	AC_DEFINE_UNQUOTED(__VENDORDWEBSUPPORT__, ["$VENDOR_WEB"], [Vendor web address for support])
+diff --git a/hw/xfree86/common/xf86Config.c b/hw/xfree86/common/xf86Config.c
+index 6fbf613..9921700 100644
+--- a/hw/xfree86/common/xf86Config.c
++++ b/hw/xfree86/common/xf86Config.c
+@@ -641,11 +641,21 @@ configFiles(XF86ConfFilesPtr fileconf)
+   
+   /* ModulePath */
+ 
+-  if (fileconf) {
+-    if (xf86ModPathFrom != X_CMDLINE && fileconf->file_modulepath) {
++  if (xf86ModPathFrom != X_CMDLINE) {
++    if (fileconf && fileconf->file_modulepath) {
+       xf86ModulePath = fileconf->file_modulepath;
+       xf86ModPathFrom = X_CONFIG;
+     }
++    else if (strcmp(xf86ExtraModulePath, "") != 0) {
++      char *newpath = malloc(strlen(xf86ExtraModulePath)
++			     + strlen(xf86ModulePath)
++			     + 2);
++      strcpy(newpath, xf86ExtraModulePath);
++      strcat(newpath, ",");
++      strcat(newpath, xf86ModulePath);
++
++      xf86ModulePath = newpath;
++    }
+   }
+ 
+   xf86Msg(xf86ModPathFrom, "ModulePath set to \"%s\"\n", xf86ModulePath);
+diff --git a/hw/xfree86/common/xf86Globals.c b/hw/xfree86/common/xf86Globals.c
+index 98f8284..eb92588 100644
+--- a/hw/xfree86/common/xf86Globals.c
++++ b/hw/xfree86/common/xf86Globals.c
+@@ -144,6 +144,7 @@ xf86InfoRec xf86Info = {
+ };
+ const char *xf86ConfigFile = NULL;
+ const char *xf86ModulePath = DEFAULT_MODULE_PATH;
++const char *xf86ExtraModulePath = EXTRA_MODULE_PATH;
+ MessageType xf86ModPathFrom = X_DEFAULT;
+ const char *xf86LogFile = DEFAULT_LOGPREFIX;
+ MessageType xf86LogFileFrom = X_DEFAULT;
+diff --git a/hw/xfree86/common/xf86Priv.h b/hw/xfree86/common/xf86Priv.h
+index 3bb1571..fcd2a38 100644
+--- a/hw/xfree86/common/xf86Priv.h
++++ b/hw/xfree86/common/xf86Priv.h
+@@ -77,6 +77,7 @@ extern _X_EXPORT  struct pci_slot_match xf86IsolateDevice;
+ 
+ extern _X_EXPORT  xf86InfoRec xf86Info;
+ extern _X_EXPORT  const char *xf86ModulePath;
++extern _X_EXPORT  const char *xf86ExtraModulePath;
+ extern _X_EXPORT  MessageType xf86ModPathFrom;
+ extern _X_EXPORT  const char *xf86LogFile;
+ extern _X_EXPORT  MessageType xf86LogFileFrom;
+diff --git a/include/xorg-config.h.in b/include/xorg-config.h.in
+index 9fe7cde..e6ad59b 100644
+--- a/include/xorg-config.h.in
++++ b/include/xorg-config.h.in
+@@ -39,6 +39,9 @@
+ /* Path to loadable modules. */
+ #undef DEFAULT_MODULE_PATH
+ 
++/* Path to extra loadable modules. */
++#undef EXTRA_MODULE_PATH
++
+ /* Path to installed libraries. */
+ #undef DEFAULT_LIBRARY_PATH
+ 

@@ -1,0 +1,42 @@
+Index: xserver-xorg-core/hw/xfree86/common/xf86AutoConfig.c
+===================================================================
+--- xserver-xorg-core.orig/hw/xfree86/common/xf86AutoConfig.c	2010-02-01 18:51:54.903592582 +1100
++++ xserver-xorg-core/hw/xfree86/common/xf86AutoConfig.c	2010-02-01 18:54:14.473621510 +1100
+@@ -192,7 +192,36 @@
+ 	    break;
+ 	case 0x102b:		    driverList[0] = "mga";	break;
+ 	case 0x10c8:		    driverList[0] = "neomagic"; break;
+-	case 0x10de: case 0x12d2:   driverList[0] = "nv";	break;
++	case 0x10de: case 0x12d2:
++	    switch (dev->device_id) {
++	    /* NV1 - NV2 are unsupported by nouveau, or nv */
++	    case 0x0008:
++	    case 0x0009:
++	    case 0x0010:
++	        driverList[0] = "vesa";
++		break;
++	    /* NV3 is supported by nv */
++	    case 0x0018:
++	    case 0x0019:
++	        driverList[0] = "nv";
++		break;
++	    /* Everything else is supported by nouveau */
++	    default:
++	        switch (dev->device_id & 0xfff0) {
++		/* These integrated cards apparently don't work with the
++		   nv driver.  Nouveau does support them */
++		case 0x0840:
++		case 0x0860:
++		    driverList[0] = "nouveau";
++		    break;
++		default:
++		    driverList[0] = "nouveau";
++		    driverList[1] = "nv";
++		    break;
++		}
++		break;
++	    }
++	    break;
+ 	case 0x1106:		    driverList[0] = "openchrome"; break;
+ 	case 0x1163:		    driverList[0] = "rendition"; break;
+ 	case 0x5333:

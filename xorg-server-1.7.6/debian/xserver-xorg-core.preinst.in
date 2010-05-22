@@ -1,0 +1,25 @@
+#!/bin/sh
+
+set -e
+
+THIS_PACKAGE=xserver-xorg-core
+THIS_SCRIPT=preinst
+
+#INCLUDE_SHELL_LIB#
+
+case "$1" in
+upgrade|install)
+  if dpkg --compare-versions "$2" lt-nl 2:1.5.2-1; then
+    remove_conffile_lookup xserver-xorg-core /etc/X11/xserver/SecurityPolicy
+  fi
+
+  if dpkg --compare-versions "$2" lt-nl 2:1.7.3.902-1ubuntu6; then 
+    update-alternatives --remove gl_conf /usr/lib/standard-x11/ld.so.conf || true
+  fi
+esac
+
+#DEBHELPER#
+
+exit 0
+
+# vim:set ai et sw=2 ts=2 tw=80:
