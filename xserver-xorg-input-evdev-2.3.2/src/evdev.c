@@ -540,35 +540,29 @@ EvdevProcessRelativeMotionEvent(InputInfoPtr pInfo, struct input_event *ev)
 
     pEvdev->rel = 1;
 
-    switch (ev->code) {
-        case REL_WHEEL:
-            if (value > 0)
-                EvdevQueueButtonClicks(pInfo, wheel_up_button, value);
-            else if (value < 0)
-                EvdevQueueButtonClicks(pInfo, wheel_down_button, -value);
-            break;
-
-        case REL_DIAL:
-        case REL_HWHEEL:
-            if (value > 0)
-                EvdevQueueButtonClicks(pInfo, wheel_right_button, value);
-            else if (value < 0)
-                EvdevQueueButtonClicks(pInfo, wheel_left_button, -value);
-            break;
-
-        /* We don't post wheel events as axis motion. */
-        default:
-            /* Ignore EV_REL events if we never set up for them. */
-            if (!(pEvdev->flags & EVDEV_RELATIVE_EVENTS))
-                return;
-
-            /* Handle mouse wheel emulation */
-            if (EvdevWheelEmuFilterMotion(pInfo, ev))
-                return;
-
-            pEvdev->delta[ev->code] += value;
-            break;
+    if(ev->code == REL_WHEEL) {
+        if (value > 0)
+            EvdevQueueButtonClicks(pInfo, wheel_up_button, value);
+        else if (value < 0)
+            EvdevQueueButtonClicks(pInfo, wheel_down_button, -value);
     }
+    
+    if(ev->code == REL_HWHEEL || ev->code == REL_HWHEEL) {
+        if (value > 0)
+            EvdevQueueButtonClicks(pInfo, wheel_right_button, value);
+        else if (value < 0)
+            EvdevQueueButtonClicks(pInfo, wheel_left_button, -value);
+    }
+
+    /* Ignore EV_REL events if we never set up for them. */
+    if (!(pEvdev->flags & EVDEV_RELATIVE_EVENTS))
+        return;
+    
+    /* Handle mouse wheel emulation */
+    if (EvdevWheelEmuFilterMotion(pInfo, ev))
+        return;
+    
+    pEvdev->delta[ev->code] += value;
 }
 
 /**
@@ -805,7 +799,8 @@ EvdevReadInput(InputInfoPtr pInfo)
     }
 }
 
-#define TestBit(bit, array) ((array[(bit) / LONG_BITS]) & (1L << ((bit) % LONG_BITS)))
+#define TestBit(bit, array) ((array[(bit) / LONG_BITS]) &  (1L << ((bit) % LONG_BITS)))
+#define SetBit(bit, array)  ((array[(bit) / LONG_BITS]) |= (1L << ((bit) % LONG_BITS)))
 
 static void
 EvdevPtrCtrlProc(DeviceIntPtr device, PtrCtrl *ctrl)
@@ -1289,14 +1284,16 @@ EvdevAddRelClass(DeviceIntPtr device)
     if (num_axes < 1)
         return !Success;
 
-    /* Wheels are special, we post them as button events. So let's ignore them
-     * in the axes list too */
-    if (TestBit(REL_WHEEL, pEvdev->rel_bitmask))
-        num_axes--;
-    if (TestBit(REL_HWHEEL, pEvdev->rel_bitmask))
-        num_axes--;
-    if (TestBit(REL_DIAL, pEvdev->rel_bitmask))
-        num_axes--;
+    /* Wheels are special, we post them as button events.
+     * PSCROLL: Post them as axis events as well. 
+     *   If scroll emulation is turned on, enable those
+     *   axes even if the device doesn't support them */
+    
+    if(pEvdev->emulateWheel.enabled)
+    {
+        SetBit(REL_WHEEL, pEvdev->rel_bitmask);
+        SetBit(REL_HWHEEL, pEvdev->rel_bitmask);
+    }
 
     if (num_axes <= 0)
         return !Success;
@@ -1308,9 +1305,7 @@ EvdevAddRelClass(DeviceIntPtr device)
     for (axis = REL_X; axis <= REL_MAX; axis++)
     {
         pEvdev->axis_map[axis] = -1;
-        /* We don't post wheel events, so ignore them here too */
-        if (axis == REL_WHEEL || axis == REL_HWHEEL || axis == REL_DIAL)
-            continue;
+        
         if (!TestBit(axis, pEvdev->rel_bitmask))
             continue;
         pEvdev->axis_map[axis] = i;
@@ -1331,15 +1326,23 @@ EvdevAddRelClass(DeviceIntPtr device)
 
     for (axis = REL_X; axis <= REL_MAX; axis++)
     {
+        int resolution = 1;
         int axnum = pEvdev->axis_map[axis];
 
         if (axnum == -1)
             continue;
+        
+        if(axis == REL_WHEEL || axis == REL_HWHEEL)
+        {
+            resolution = pEvdev->wheel_resolution;
+        }
+        
+        
         xf86InitValuatorAxisStruct(device, axnum,
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
                 atoms[axnum],
 #endif
-                -1, -1, 1, 0, 1);
+                -1, -1, resolution, 0, resolution);
         xf86InitValuatorDefaults(device, axnum);
     }
 
@@ -2123,6 +2126,16 @@ EvdevPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
        words, it disables rfkill and the "Macintosh mouse button emulation".
        Note that this needs a server that sets the console to RAW mode. */
     pEvdev->grabDevice = xf86CheckBoolOption(dev->commonOptions, "GrabDevice", 0);
+    
+    pEvdev->wheel_resolution = xf86SetIntOption(pInfo->options, "WheelResolution", 1);
+    
+    if(pEvdev->wheel_resolution <= 0) {
+        xf86Msg(X_WARNING, "%s: Invalid WheelResolution value: %d\n",
+                pInfo->name, pEvdev->wheel_resolution);
+        xf86Msg(X_WARNING, "%s: Using built-in resolution value.\n",
+                pInfo->name);
+        pEvdev->wheel_resolution = 1;
+    }
 
     EvdevInitButtonMapping(pInfo);
 
