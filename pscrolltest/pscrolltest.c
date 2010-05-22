@@ -2,6 +2,7 @@
 // Author: Max Schwarz <Max@x-quadraht.de>
 
 #include <stdio.h>
+#include <assert.h>
 
 //#include <X11/Xlib.h>
 #include <X11/extensions/XInput2.h>
@@ -47,6 +48,9 @@ static void findWheelDevice()
 	int i, j;
 	const char *type = "";
 	
+	printf("\n==================================================\n");
+	printf("Looking for pscroll wheel valuator...\n");
+	
 	info = XIQueryDevice(dpy, XIAllMasterDevices, &ndevices);
 	
 	wheel_device = -1;
@@ -66,8 +70,6 @@ static void findWheelDevice()
 				case XIValuatorClass:
 					valInfo = (XIValuatorClassInfo*)aclass;
 					
-					printf("Valuator class: %s\n", XGetAtomName(dpy, valInfo->label));
-					
 					if(strcmp(XGetAtomName(dpy, valInfo->label), WHEEL_LABEL) == 0)
 					{
 						XIEventMask eventmask;
@@ -85,6 +87,8 @@ static void findWheelDevice()
 						XISelectEvents(dpy, win, &eventmask, 1);
 						
 						printf("Found pscroll wheel valuator\n");
+						printf("Resolution is %d\n", valInfo->resolution);
+						printf("\n");
 						
 						goto exit;
 					}
@@ -120,6 +124,28 @@ static void process_event(XIDeviceEvent *data)
 	printf("Scroll valuator event: %f\n", data->valuators.values[idx]);
 }
 
+static int has_xi2()
+{
+	int major, minor;
+	int rc;
+	
+	major = 2;
+	minor = 0;
+	
+	rc = XIQueryVersion(dpy, &major, &minor);
+	if(rc == BadRequest)
+	{
+		printf("No XI2 support. Server supports version %d.%d only.\n", major, minor);
+		return 0;
+	}
+	
+	assert(rc == Success);
+	
+	printf("XI2 supported. Server provides version %d.%d\n", major, minor);
+	
+	return 1;
+}
+
 int main(int argc, char **argv)
 {
 	int event, error;
@@ -139,6 +165,11 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	
+	if(!has_xi2())
+	{
+		return -1;
+	}
+	
 	evmask.mask = mask;
 	evmask.mask_len = sizeof(mask);
 	evmask.deviceid = XIAllDevices;
@@ -146,10 +177,13 @@ int main(int argc, char **argv)
 	XISetMask(mask, XI_DeviceChanged);
 	
 	XISelectEvents(dpy, DefaultRootWindow(dpy), &evmask, 1);
+	XFlush(dpy);
 	
 	win = create_win();
 	
 	findWheelDevice();
+	
+	printf("Listening for events...\n");
 	
 	while(1)
 	{
@@ -157,20 +191,14 @@ int main(int argc, char **argv)
 		XNextEvent(dpy, &event);
 		
 		if(event.xcookie.type != GenericEvent)
-		{
-			printf("wrong event type (is %d, should be %d)\n", event.xcookie.type, GenericEvent);
 			continue;
-		}
 		
 		if(event.xcookie.extension != xi_opcode)
-		{
-			printf("wrong opcode\n");
 			continue;
-		}
 		
 		if(!XGetEventData(dpy, &event.xcookie))
 		{
-			printf("Could not get event data\n");
+			fprintf(stderr, "Could not get event data\n");
 			continue;
 		}
 		
@@ -179,11 +207,14 @@ int main(int argc, char **argv)
 			case XI_Motion:
 				process_event(event.xcookie.data);
 				break;
-			case XI_HierarchyChanged:
+			case XI_DeviceChanged:
 				findWheelDevice();
 				break;
 		}
+		
+		XFreeEventData(dpy, &event.xcookie);
 	}
 	
+	XCloseDisplay(dpy);
 	return 0;
 }
