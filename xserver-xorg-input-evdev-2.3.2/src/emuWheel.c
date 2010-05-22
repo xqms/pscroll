@@ -177,7 +177,7 @@ EvdevWheelEmuInertia(InputInfoPtr pInfo, WheelAxisPtr axis, int value)
     }
     
     /* Produce valuator events */
-    EvdevInjectRelativeMotion(pInfo, axis->code, axis->traveled_distance);
+    EvdevInjectRelativeMotion(pInfo, axis->code, -axis->traveled_distance);
     
     /* Produce button press events for wheel motion */
     while(abs(axis->traveled_distance) > pEvdev->emulateWheel.inertia) {
