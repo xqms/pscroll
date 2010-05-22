@@ -2,3 +2,10 @@
 build
 m4
 *~
+Makefile.in
+aclocal.m4
+config.guess
+config.h.in
+config.sub
+configure
+autom4te.cache
