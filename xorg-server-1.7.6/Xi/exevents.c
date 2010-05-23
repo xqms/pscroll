@@ -1150,7 +1150,7 @@ InitProximityClassDeviceStruct(DeviceIntPtr dev)
  */
 void
 InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, int maxval,
-		       int resolution, int min_res, int max_res, Bool no_integration)
+		       int resolution, int min_res, int max_res)
 {
     AxisInfoPtr ax;
 
@@ -1167,6 +1167,24 @@ InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, int 
     ax->min_resolution = min_res;
     ax->max_resolution = max_res;
     ax->label = label;
+    ax->no_integration = 0;
+}
+
+/**
+ * Prevents axis from being integrated in dix/getevents.c
+ */
+void
+SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration)
+{
+    AxisInfoPtr ax;
+
+    if (!dev || !dev->valuator)
+        return;
+    if (axnum >= dev->valuator->numAxes)
+        return;
+
+    ax = dev->valuator->axes + axnum;
+    
     ax->no_integration = no_integration;
 }
 

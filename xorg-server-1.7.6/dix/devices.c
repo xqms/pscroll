@@ -1208,7 +1208,7 @@ InitValuatorClassDeviceStruct(DeviceIntPtr dev, int numAxes, Atom *labels,
 
     for (i=0; i<numAxes; i++) {
         InitValuatorAxisStruct(dev, i, labels[i], NO_AXIS_LIMITS, NO_AXIS_LIMITS,
-                               0, 0, 0, False);
+                               0, 0, 0);
 	valc->axisVal[i]=0;
     }
 

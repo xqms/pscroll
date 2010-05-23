@@ -1342,13 +1342,15 @@ EvdevAddRelClass(DeviceIntPtr device)
     {
         int resolution = 1;
         int axnum = pEvdev->axis_map[axis];
-
+        int no_integration = 0;
+        
         if (axnum == -1)
             continue;
         
         if(axis == REL_WHEEL || axis == REL_HWHEEL)
         {
             resolution = pEvdev->wheel_resolution;
+            no_integration = 1;
         }
         
         
@@ -1358,6 +1360,7 @@ EvdevAddRelClass(DeviceIntPtr device)
 #endif
                 -1, -1, resolution, 0, resolution);
         xf86InitValuatorDefaults(device, axnum);
+        xf86SetValuatorAxisNoIntegration(device, axnum, no_integration);
     }
 
     xfree(atoms);

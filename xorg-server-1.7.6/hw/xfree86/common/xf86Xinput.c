@@ -1221,13 +1221,19 @@ xf86XInputSetScreen(LocalDevicePtr	local,
 
 void
 xf86InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, int maxval,
-			   int resolution, int min_res, int max_res, Bool no_integration)
+			   int resolution, int min_res, int max_res)
 {
     if (!dev || !dev->valuator)
         return;
 
     InitValuatorAxisStruct(dev, axnum, label, minval, maxval, resolution, min_res,
-			   max_res, no_integration);
+			   max_res);
+}
+
+void
+xf86SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration)
+{
+    SetValuatorAxisNoIntegration(dev, axnum, no_integration);
 }
 
 /*

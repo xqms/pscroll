@@ -48,8 +48,14 @@ extern _X_EXPORT void InitValuatorAxisStruct(
 	int                    /* maxval */,
 	int                    /* resolution */,
 	int                    /* min_res */,
-	int                    /* max_res */,
-	Bool                   /* no_integration */);
+	int                    /* max_res */
+);
+
+extern _X_EXPORT void SetValuatorAxisNoIntegration(
+	DeviceIntPtr           /* dev */,
+	int                    /* axnum */,
+	Bool                   /* no_integration */
+);
 
 /* Input device properties */
 extern _X_EXPORT void XIDeleteAllDeviceProperties(
