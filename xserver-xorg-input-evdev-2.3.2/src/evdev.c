@@ -1294,10 +1294,6 @@ EvdevAddRelClass(DeviceIntPtr device)
     if (!TestBit(EV_REL, pEvdev->bitmask))
         return !Success;
 
-    num_axes = CountBits(pEvdev->rel_bitmask, NLONGS(REL_MAX));
-    if (num_axes < 1)
-        return !Success;
-
     /* Wheels are special, we post them as button events.
      * PSCROLL: Post them as axis events as well. 
      *   If scroll emulation is turned on, enable those
@@ -1305,11 +1301,14 @@ EvdevAddRelClass(DeviceIntPtr device)
     
     if(pEvdev->emulateWheel.enabled)
     {
-        SetBit(REL_WHEEL, pEvdev->rel_bitmask);
-        SetBit(REL_HWHEEL, pEvdev->rel_bitmask);
+        if(pEvdev->emulateWheel.Y.up_button)
+            SetBit(REL_WHEEL, pEvdev->rel_bitmask);
+        if(pEvdev->emulateWheel.X.up_button)
+            SetBit(REL_HWHEEL, pEvdev->rel_bitmask);
     }
-
-    if (num_axes <= 0)
+    
+    num_axes = CountBits(pEvdev->rel_bitmask, NLONGS(REL_MAX));
+    if (num_axes < 1)
         return !Success;
 
     pEvdev->num_vals = num_axes;
