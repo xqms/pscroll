@@ -1,0 +1,115 @@
+diff --git a/Xi/exevents.c b/Xi/exevents.c
+index e680f6f..38893d2 100644
+--- a/Xi/exevents.c
++++ b/Xi/exevents.c
+@@ -1167,6 +1167,25 @@ InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, int
+     ax->min_resolution = min_res;
+     ax->max_resolution = max_res;
+     ax->label = label;
++    ax->no_integration = 0;
++}
++
++/**
++ * Prevents axis from being integrated in dix/getevents.c
++ */
++void
++SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration)
++{
++    AxisInfoPtr ax;
++
++    if (!dev || !dev->valuator)
++        return;
++    if (axnum >= dev->valuator->numAxes)
++        return;
++
++    ax = dev->valuator->axes + axnum;
++    
++    ax->no_integration = no_integration;
+ }
+ 
+ static void
+diff --git a/dix/getevents.c b/dix/getevents.c
+index 82bb77b..a2097b7 100644
+--- a/dix/getevents.c
++++ b/dix/getevents.c
+@@ -719,9 +719,16 @@ moveRelative(DeviceIntPtr dev, int *x, int *y,
+     i = (first > 2) ? 0 : 2;
+     for (; i < num; i++)
+     {
+-        dev->last.valuators[i + first] += valuators[i];
+-        clipAxis(dev, i, &dev->last.valuators[i + first]);
+-        valuators[i] = dev->last.valuators[i + first];
++        if(dev->valuator->axes[i + first].no_integration)
++        {
++            dev->last.valuators[i + first] = valuators[i];
++        }
++        else
++        {
++            dev->last.valuators[i + first] += valuators[i];
++            clipAxis(dev, i, &dev->last.valuators[i + first]);
++            valuators[i] = dev->last.valuators[i + first];
++        }
+     }
+ }
+ 
+diff --git a/hw/xfree86/common/xf86Xinput.c b/hw/xfree86/common/xf86Xinput.c
+index d4b8f66..bbd8bcc 100644
+--- a/hw/xfree86/common/xf86Xinput.c
++++ b/hw/xfree86/common/xf86Xinput.c
+@@ -1230,6 +1230,12 @@ xf86InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval,
+ 			   max_res);
+ }
+ 
++void
++xf86SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration)
++{
++    SetValuatorAxisNoIntegration(dev, axnum, no_integration);
++}
++
+ /*
+  * Set the valuator values to be in synch with dix/event.c
+  * DefineInitialRootWindow().
+diff --git a/hw/xfree86/common/xf86Xinput.h b/hw/xfree86/common/xf86Xinput.h
+index aa9e9d5..5ad81f7 100644
+--- a/hw/xfree86/common/xf86Xinput.h
++++ b/hw/xfree86/common/xf86Xinput.h
+@@ -190,6 +190,7 @@ extern _X_EXPORT void xf86ProcessCommonOptions(InputInfoPtr pInfo, pointer optio
+ extern _X_EXPORT void xf86InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval,
+ 				int maxval, int resolution, int min_res,
+ 				int max_res);
++extern _X_EXPORT void xf86SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration);
+ extern _X_EXPORT void xf86InitValuatorDefaults(DeviceIntPtr dev, int axnum);
+ extern _X_EXPORT void xf86AddEnabledDevice(InputInfoPtr pInfo);
+ extern _X_EXPORT void xf86RemoveEnabledDevice(InputInfoPtr pInfo);
+diff --git a/include/exevents.h b/include/exevents.h
+index 39e1c70..20785f2 100644
+--- a/include/exevents.h
++++ b/include/exevents.h
+@@ -48,7 +48,14 @@ extern _X_EXPORT void InitValuatorAxisStruct(
+ 	int                    /* maxval */,
+ 	int                    /* resolution */,
+ 	int                    /* min_res */,
+-	int                    /* max_res */);
++	int                    /* max_res */
++);
++
++extern _X_EXPORT void SetValuatorAxisNoIntegration(
++	DeviceIntPtr           /* dev */,
++	int                    /* axnum */,
++	Bool                   /* no_integration */
++);
+ 
+ /* Input device properties */
+ extern _X_EXPORT void XIDeleteAllDeviceProperties(
+diff --git a/include/inputstr.h b/include/inputstr.h
+index 15184d0..3297926 100644
+--- a/include/inputstr.h
++++ b/include/inputstr.h
+@@ -216,6 +216,7 @@ typedef struct _AxisInfo {
+     int		min_value;
+     int		max_value;
+     Atom	label;
++    Bool	no_integration;
+ } AxisInfo, *AxisInfoPtr;
+ 
+ typedef struct _ValuatorAccelerationRec {
