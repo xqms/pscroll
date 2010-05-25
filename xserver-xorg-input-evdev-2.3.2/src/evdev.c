@@ -814,7 +814,7 @@ EvdevReadInput(InputInfoPtr pInfo)
 }
 
 #define TestBit(bit, array) ((array[(bit) / LONG_BITS]) &  (1L << ((bit) % LONG_BITS)))
-#define SetBit(bit, array)  ((array[(bit) / LONG_BITS]) |= (1L << ((bit) % LONG_BITS)))
+#define evdev_SetBit(bit, array)  ((array[(bit) / LONG_BITS]) |= (1L << ((bit) % LONG_BITS)))
 
 static void
 EvdevPtrCtrlProc(DeviceIntPtr device, PtrCtrl *ctrl)
@@ -1302,9 +1302,9 @@ EvdevAddRelClass(DeviceIntPtr device)
     if(pEvdev->emulateWheel.enabled)
     {
         if(pEvdev->emulateWheel.Y.up_button)
-            SetBit(REL_WHEEL, pEvdev->rel_bitmask);
+            evdev_SetBit(REL_WHEEL, pEvdev->rel_bitmask);
         if(pEvdev->emulateWheel.X.up_button)
-            SetBit(REL_HWHEEL, pEvdev->rel_bitmask);
+            evdev_SetBit(REL_HWHEEL, pEvdev->rel_bitmask);
     }
     
     num_axes = CountBits(pEvdev->rel_bitmask, NLONGS(REL_MAX));
