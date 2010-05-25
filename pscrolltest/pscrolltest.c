@@ -76,9 +76,9 @@ static void findWheelDevice()
 						unsigned char mask[1] = {0};
 						
 						wheel_device = dev->deviceid;
-						wheel_valuator = j;
+						wheel_valuator = valInfo->number;
 						
-						eventmask.deviceid = wheel_device;
+						eventmask.deviceid = XIAllMasterDevices;
 						eventmask.mask = mask;
 						eventmask.mask_len = sizeof(mask);
 						
@@ -114,12 +114,14 @@ static void process_event(XIDeviceEvent *data)
 	if(data->deviceid != wheel_device)
 		return;
 	
-	if(XIMaskIsSet(data->valuators.mask, wheel_valuator))
+	if(!XIMaskIsSet(data->valuators.mask, wheel_valuator))
 		return;
 	
-	for(i = 0; i < wheel_valuator - 1; ++i)
+	for(i = 0; i < wheel_valuator; ++i)
 		if(XIMaskIsSet(data->valuators.mask, i))
+                {
 			++idx;
+                }
 	
 	printf("Scroll valuator event: %f\n", data->valuators.values[idx]);
 }
@@ -172,7 +174,7 @@ int main(int argc, char **argv)
 	
 	evmask.mask = mask;
 	evmask.mask_len = sizeof(mask);
-	evmask.deviceid = XIAllDevices;
+	evmask.deviceid = XIAllMasterDevices;
 	
 	XISetMask(mask, XI_DeviceChanged);
 	
