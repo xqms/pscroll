@@ -1,0 +1,353 @@
+diff --git a/src/gui/kernel/qapplication_x11.cpp b/src/gui/kernel/qapplication_x11.cpp
+index 69efac2..ead3354 100644
+--- a/src/gui/kernel/qapplication_x11.cpp
++++ b/src/gui/kernel/qapplication_x11.cpp
+@@ -123,6 +123,8 @@ extern "C" {
+ #include <X11/keysymdef.h>
+ #if !defined(QT_NO_XINPUT)
+ #include <X11/extensions/XI.h>
++#include <X11/extensions/XI2.h>
++#include <X11/extensions/XInput2.h>
+ #endif
+ 
+ #include <stdlib.h>
+@@ -318,6 +320,10 @@ static const char * x11_atomnames = {
+     "Wacom Stylus\0"
+     "Wacom Cursor\0"
+     "Wacom Eraser\0"
++    
++    // pscroll
++    "Rel Vert Wheel\0"
++    "Rel Horiz Wheel\0"
+ };
+ 
+ Q_GUI_EXPORT QX11Data *qt_x11Data = 0;
+@@ -539,6 +545,7 @@ public:
+ #if !defined (QT_NO_TABLET)
+     bool translateXinputEvent(const XEvent*, QTabletDeviceData *tablet);
+ #endif
++    bool translateXI2Event(XEvent*);
+     bool translatePropertyEvent(const XEvent *);
+ 
+     void doDeferredMap()
+@@ -1536,6 +1543,55 @@ Q_GLOBAL_STATIC(QByteArray, wacomDeviceName)
+ 
+ #endif
+ 
++/**
++ * \internal
++ *
++ * Looks for wheel devices with pscroll valuators
++ * and sets X11->xinput_pscroll_* accordingly.
++ */
++static void pscrollFindWheelDevice()
++{
++    XIDeviceInfo *info, *dev;
++    int ndevices;
++    
++    info = XIQueryDevice(X11->display, XIAllMasterDevices, &ndevices);
++    
++    X11->xinput_pscroll_device = -1;
++    X11->xinput_pscroll_horiz_valuator = -1;
++    X11->xinput_pscroll_vert_valuator = -1;
++        
++    for(int i = 0; i < ndevices; ++i)
++    {
++        dev = &info[i];
++        
++        if(dev->use != XIMasterPointer)
++            continue;
++                
++        for(int j = 0; j < dev->num_classes; ++j)
++        {
++            XIValuatorClassInfo *valInfo = (XIValuatorClassInfo*)(dev->classes[j]);
++            
++            if(valInfo->type != XIValuatorClass)
++                continue;
++                        
++            if(valInfo->label == ATOM(PSCROLL_WHEEL))
++            {
++                X11->xinput_pscroll_device = dev->deviceid;
++                X11->xinput_pscroll_vert_valuator = valInfo->number;
++                X11->xinput_pscroll_vert_resolution = valInfo->resolution;
++            }
++            
++            if(valInfo->label == ATOM(PSCROLL_HWHEEL))
++            {
++                X11->xinput_pscroll_horiz_valuator = valInfo->number;
++                X11->xinput_pscroll_horiz_resolution = valInfo->resolution;
++            }
++        }
++    }
++    
++    XIFreeDeviceInfo(info);
++}
++
+ /*****************************************************************************
+   qt_init() - initializes Qt for X11
+  *****************************************************************************/
+@@ -2085,6 +2141,9 @@ void qt_init(QApplicationPrivate *priv, int,
+         X11->ptrXOpenDevice = 0;
+         X11->ptrXFreeDeviceList = 0;
+         X11->ptrXSelectExtensionEvent = 0;
++        X11->xinput_pscroll_device = -1;
++        X11->xinput_pscroll_vert_valuator = -1;
++        X11->xinput_pscroll_horiz_valuator = -1;
+         X11->use_xinput = XQueryExtension(X11->display, "XInputExtension", &X11->xinput_major,
+                                           &X11->xinput_eventbase, &X11->xinput_errorbase);
+         if (X11->use_xinput) {
+@@ -2093,7 +2152,15 @@ void qt_init(QApplicationPrivate *priv, int,
+             X11->ptrXOpenDevice = XINPUT_LOAD(XOpenDevice);
+             X11->ptrXFreeDeviceList = XINPUT_LOAD(XFreeDeviceList);
+             X11->ptrXSelectExtensionEvent = XINPUT_LOAD(XSelectExtensionEvent);
+-        }
++            
++            X11->xinput_version_major = 2;
++            X11->xinput_version_minor = 0;
++            
++            int rc = XIQueryVersion(X11->display, &X11->xinput_version_major,
++                                    &X11->xinput_version_minor);
++            if(rc != Success)
++                X11->xinput_version_major = -1;
++        }        
+ #endif // QT_NO_XINPUT
+ 
+ #if !defined(QT_NO_FONTCONFIG)
+@@ -2324,6 +2391,24 @@ void qt_init(QApplicationPrivate *priv, int,
+             QApplicationPrivate::setSystemFont(f);
+         }
+ 
++        // Pixel scrolling support
++        if (X11->use_xinput && X11->xinput_version_major >= 2)
++        {            
++            // Subscribe to DeviceChanged events, so we get notified if pscroll support changes
++            XIEventMask evmask;
++            unsigned char mask[2] = {0,0};
++            
++            evmask.mask = mask;
++            evmask.mask_len = sizeof(mask);
++            evmask.deviceid = XIAllMasterDevices;
++            
++            XISetMask(mask, XI_DeviceChanged);
++            XISelectEvents(X11->display, DefaultRootWindow(X11->display), &evmask, 1);
++            XFlush(X11->display);
++            
++            pscrollFindWheelDevice();
++        }
++
+ #if !defined (QT_NO_TABLET)
+         if (X11->use_xinput) {
+             int ndev,
+@@ -3103,7 +3188,7 @@ int QApplication::x11ProcessEvent(XEvent* event)
+ {
+     Q_D(QApplication);
+     QScopedLoopLevelCounter loopLevelCounter(d->threadData);
+-
++    
+ #ifdef ALIEN_DEBUG
+     //qDebug() << "QApplication::x11ProcessEvent:" << event->type;
+ #endif
+@@ -3144,8 +3229,33 @@ int QApplication::x11ProcessEvent(XEvent* event)
+         X11->time = req->selection_timestamp;
+     }
+ #endif
++    
++    WId winID = (WId)event->xany.window;
++    
++    // GenericEvents do not provide the window field, so we need to extract
++    // the XI2 event being sent...
++    if(event->type == GenericEvent && event->xcookie.extension == X11->xinput_major)
++    {
++        if(!XGetEventData(X11->display, &event->xcookie))
++            return -1;
++        
++        switch(event->xcookie.evtype)
++        {
++            case XI_Motion:
++                winID = (WId)((XIDeviceEvent*)event->xcookie.data)->event;
++                break;
++            case XI_DeviceChanged:
++                // Handle event directly, as it does not have a associated window ID
++                pscrollFindWheelDevice();
++                XFreeEventData(X11->display, &event->xcookie);
++                return true;
++            default:
++                XFreeEventData(X11->display, &event->xcookie);
++                return -1; // Unknown XI2 event type
++        }
++    }
+ 
+-    QETWidget *widget = (QETWidget*)QWidget::find((WId)event->xany.window);
++    QETWidget *widget = (QETWidget*)QWidget::find(winID);
+ 
+     if (wPRmapper) {                                // just did a widget reparent?
+         if (widget == 0) {                        // not in std widget mapper
+@@ -3296,6 +3406,13 @@ int QApplication::x11ProcessEvent(XEvent* event)
+         }
+     }
+ #endif
++    
++    if(event->type == GenericEvent && event->xcookie.extension == X11->xinput_major)
++    {
++        widget->translateXI2Event(event);
++        XFreeEventData(X11->display, &event->xcookie);
++        return 1;
++    }
+ 
+ #ifndef QT_NO_XRANDR
+     if (X11->use_xrandr && event->type == (X11->xrandr_eventbase + RRScreenChangeNotify)) {
+@@ -4170,6 +4287,10 @@ bool QETWidget::translateMouseEvent(const XEvent *event)
+                     delta++;
+                 }
+ 
++                // If pscroll is active, ignore the events
++                if(X11->xinput_pscroll_device)
++                    return true;
++                
+                 // the delta is defined as multiples of
+                 // WHEEL_DELTA, which is set to 120. Future wheels
+                 // may offer a finer-resolution. A positive delta
+@@ -4792,6 +4913,75 @@ bool QETWidget::translateXinputEvent(const XEvent *ev, QTabletDeviceData *tablet
+ }
+ #endif
+ 
++// Translate XI2 event
++//  only support XI_Motion events currently.
++//  xcookie event data get & free has to be handled by caller.
++bool QETWidget::translateXI2Event(XEvent *event)
++{
++    XIDeviceEvent *devEvent = (XIDeviceEvent*)event->xcookie.data;
++    
++    int evtype = event->xcookie.evtype;
++    
++    if(evtype == XI_Motion)
++    {
++        double *val = devEvent->valuators.values;
++        
++        for(int i = 0; i < devEvent->valuators.mask_len*8; ++i)
++        {
++            if(XIMaskIsSet(devEvent->valuators.mask, i))
++            {
++                if(i == X11->xinput_pscroll_horiz_valuator && *val != 0)
++                {
++                    
++                    int delta = (*val) * 120.0 / X11->xinput_pscroll_vert_resolution;
++                    translateWheelEvent(devEvent->root_x, devEvent->root_y, delta, 0, 0, Qt::Horizontal);
++                }
++                
++                if(i == X11->xinput_pscroll_vert_valuator && *val != 0)
++                {
++                    int delta = (*val) * 120.0 / X11->xinput_pscroll_vert_resolution;
++                    translateWheelEvent(devEvent->root_x, devEvent->root_y, delta, 0, 0, Qt::Vertical);
++                }
++                
++                val++;
++            }
++        }
++        
++        // Construct a classic MotionNotify event because XI2 events block
++        // core events...
++        XMotionEvent motion;
++        
++        motion.type        = MotionNotify;
++        motion.serial      = event->xcookie.serial;
++        motion.send_event  = event->xcookie.send_event;
++        motion.display     = event->xcookie.display;
++        motion.window      = devEvent->event;
++        motion.root        = devEvent->root;
++        motion.subwindow   = devEvent->child;
++        motion.time        = devEvent->time;
++        motion.x           = devEvent->event_x;
++        motion.y           = devEvent->event_y;
++        motion.x_root      = devEvent->root_x;
++        motion.y_root      = devEvent->root_y;
++        
++        // XI2 has flexible button mask lengths
++        motion.state       = 0;
++        for(int i = 0; i < devEvent->buttons.mask_len; ++i)
++            motion.state |= ((unsigned int)devEvent->buttons.mask[i]) << (i*8);
++        
++        motion.is_hint     = devEvent->detail;
++        motion.same_screen = True;
++        
++        translateMouseEvent((XEvent*)&motion);
++    }
++    else
++    {
++        return false;
++    }
++    
++    return true;
++}
++
+ bool QETWidget::translatePropertyEvent(const XEvent *event)
+ {
+     Q_D(QWidget);
+diff --git a/src/gui/kernel/qt_x11_p.h b/src/gui/kernel/qt_x11_p.h
+index a2b40ce..ea77204 100644
+--- a/src/gui/kernel/qt_x11_p.h
++++ b/src/gui/kernel/qt_x11_p.h
+@@ -106,6 +106,8 @@
+ #endif
+ #endif // QT_NO_TABLET
+ 
++#include <X11/extensions/XInput2.h>
++
+ 
+ // #define QT_NO_XINERAMA
+ #ifndef QT_NO_XINERAMA
+@@ -433,11 +435,18 @@ struct QX11Data
+     bool use_mitshm_pixmaps;
+     int mitshm_major;
+ 
+-    // true if Qt is compiled w/ Tablet support and we have a tablet.
++    // true if Qt is compiled w/ XInput support and XInput is supported on the connected Display
+     bool use_xinput;
+     int xinput_major;
++    int xinput_version_major;
++    int xinput_version_minor;
+     int xinput_eventbase;
+     int xinput_errorbase;
++    int xinput_pscroll_device;
++    int xinput_pscroll_vert_valuator;
++    int xinput_pscroll_vert_resolution;
++    int xinput_pscroll_horiz_valuator;
++    int xinput_pscroll_horiz_resolution;
+ 
+     QList<QWidget *> deferred_map;
+     struct ScrollInProgress {
+@@ -674,6 +683,10 @@ struct QX11Data
+         XWacomStylus,
+         XWacomCursor,
+         XWacomEraser,
++        
++        // pscroll
++        PSCROLL_WHEEL,
++        PSCROLL_HWHEEL,
+ 
+         NPredefinedAtoms,
+ 
+diff --git a/src/gui/kernel/qwidget_x11.cpp b/src/gui/kernel/qwidget_x11.cpp
+index d84f925..5e3ca98 100644
+--- a/src/gui/kernel/qwidget_x11.cpp
++++ b/src/gui/kernel/qwidget_x11.cpp
+@@ -872,6 +872,19 @@ void QWidgetPrivate::create_sys(WId window, bool initializeWindow, bool destroyO
+ //         else
+         XSelectInput(dpy, id, stdDesktopEventMask);
+     } else if (q->internalWinId()) {
++        
++        // XI2 input mask
++        XIEventMask evmask;
++        unsigned char mask[2] = {0};
++        
++        evmask.deviceid = XIAllMasterDevices;
++        evmask.mask = mask;
++        evmask.mask_len = sizeof(mask);
++        
++        XISetMask(mask, XI_Motion);
++        
++        XISelectEvents(dpy, id, &evmask, 1);
++        
+         XSelectInput(dpy, id, stdWidgetEventMask);
+ #if !defined (QT_NO_TABLET)
+         QTabletDeviceDataList *tablet_list = qt_tablet_devices();
