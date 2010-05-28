@@ -1743,9 +1743,9 @@ EvdevCacheCompare(InputInfoPtr pInfo, BOOL compare)
     if(pEvdev->emulateWheel.enabled)
     {
         if(pEvdev->emulateWheel.Y.up_button)
-            evdev_SetBit(REL_WHEEL, pEvdev->rel_bitmask);
+            evdev_SetBit(REL_WHEEL, rel_bitmask);
         if(pEvdev->emulateWheel.X.up_button)
-            evdev_SetBit(REL_HWHEEL, pEvdev->rel_bitmask);
+            evdev_SetBit(REL_HWHEEL, rel_bitmask);
     }
 
     if (!compare) {
