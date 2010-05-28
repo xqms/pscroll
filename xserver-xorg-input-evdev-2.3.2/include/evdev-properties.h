@@ -46,7 +46,7 @@
 /* CARD8, value range 0-32, 0 to always scroll */
 #define EVDEV_PROP_WHEEL_BUTTON "Evdev Wheel Emulation Button"
 /* CARD32 */
-#define EVDEV_PROP_WHEEL_RESOLUTION
+#define EVDEV_PROP_WHEEL_RESOLUTION "Evdev Wheel Resolution"
 
 /* Drag lock */
 /* CARD8, either 1 value or pairs, value range 0-32, 0 to disable a value*/

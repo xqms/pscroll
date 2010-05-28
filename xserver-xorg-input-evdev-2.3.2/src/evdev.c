@@ -2677,7 +2677,7 @@ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
             return BadMatch;
         
         if(!checkonly)
-            pEvdev->wheel_resolution = val->data;
+            pEvdev->wheel_resolution = *((CARD32*)val->data);
     } else if (atom == prop_axis_label || atom == prop_btn_label)
         return BadAccess; /* Axis/Button labels can't be changed */
 
