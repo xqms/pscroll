@@ -130,6 +130,7 @@ static Atom prop_calibration = 0;
 static Atom prop_swap = 0;
 static Atom prop_axis_label = 0;
 static Atom prop_btn_label = 0;
+static Atom prop_wheel_resolution = 0;
 #endif
 
 /* All devices the evdev driver has allocated and knows about.
@@ -2591,6 +2592,18 @@ EvdevInitProperty(DeviceIntPtr dev)
             return;
 
         XISetDevicePropertyDeletable(dev, prop_swap, FALSE);
+        
+        prop_wheel_resolution = MakeAtom(EVDEV_PROP_WHEEL_RESOLUTION,
+                                         strlen(EVDEV_PROP_WHEEL_RESOLUTION), TRUE);
+        
+        rc = XIChangeDeviceProperty(dev, prop_wheel_resolution, XA_INTEGER, 16,
+                                    PropModeReplace, 1, &pEvdev->wheel_resolution,
+                                    FALSE);
+        
+        if (rc != Success)
+            return;
+        
+        XISetDevicePropertyDeletable(dev, prop_wheel_resolution, FALSE);
 
 #ifdef HAVE_LABELS
         /* Axis labelling */
@@ -2658,6 +2671,13 @@ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
 
         if (!checkonly)
             pEvdev->swap_axes = *((BOOL*)val->data);
+    } else if (atom == prop_wheel_resolution)
+    {
+        if(val->format != 32 || val->type != XA_INTEGER || val->size != 1)
+            return BadMatch;
+        
+        if(!checkonly)
+            pEvdev->wheel_resolution = val->data;
     } else if (atom == prop_axis_label || atom == prop_btn_label)
         return BadAccess; /* Axis/Button labels can't be changed */
 
