@@ -1,0 +1,8 @@
+01-synaptics-dont-grab-if-not-on-current-VT.patch
+02-do-not-use-synaptics-for-keyboards.patch
+03-man-no-hal.patch
+103_enable_cornertapping.patch
+104_always_enable_tapping.patch
+#105_correct_multifinger_click.patch
+106_always_enable_vert_edge_scroll.patch
+114_jumpy_cursor_first_part.patch
