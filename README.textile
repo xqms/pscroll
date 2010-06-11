@@ -1,0 +1,38 @@
+h1. pscroll - pixel scrolling with X.org, GTK and QT
+
+pscroll attempts to add support for pixel-resolution scrolling to the Linux
+graphics stack.
+
+Currently, scroll events are implemented as button presses, which does not
+scale well for higher-resolution devices (either you loose the resolution or
+you create an overhead of button events). Furthermore, the interpretation of
+these button events is left to the client software (i.e. GTK or QT).
+
+h2. Rationale
+
+pscroll proposes using a new valuator to report wheel events, which gives
+accurate scrolling information in addition to the old button interface, to
+keep the compability with current clients. The resolution field of the
+valuator (needs XI2) specifies how much valuator units make up one
+old scroll "click" so that toolkits can calculate how much to scroll.
+
+h2. Current status
+
+* xorg-server was changed to allow blocking of valuator axis integration.
+  I have experienced no problems with it so far, but I don't know if it is
+  done the "right" way as I have no experience with Xorg.
+* There is a patch for QT 4.6 that adds pscroll support.
+** Modifiers are not handled correctly (e.g. scrolling while holding down
+   ctrl)
+* xserver-xorg-input-evdev sends high precision data.
+* xserver-xorg-input-synaptics sends high precision data.
+  - Circular scrolling is disabled, needs some work.
+  - Coasting is also disabled, scrolling speed is kept internally in
+    scroll clicks per sec (Eww).
+
+h2. What needs to be done?
+
+* Graphics frameworks need to be changed to use the new events
+* Some client software (e.g. firefox) handle scrolling internally and need
+  to be changed too.
+
