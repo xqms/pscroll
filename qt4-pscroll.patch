@@ -1,5 +1,5 @@
 diff --git a/src/gui/kernel/qapplication_x11.cpp b/src/gui/kernel/qapplication_x11.cpp
-index 69efac2..ead3354 100644
+index 69efac2..0a7b243 100644
 --- a/src/gui/kernel/qapplication_x11.cpp
 +++ b/src/gui/kernel/qapplication_x11.cpp
 @@ -123,6 +123,8 @@ extern "C" {
@@ -207,43 +207,84 @@ index 69efac2..ead3354 100644
                  // the delta is defined as multiples of
                  // WHEEL_DELTA, which is set to 120. Future wheels
                  // may offer a finer-resolution. A positive delta
-@@ -4792,6 +4913,75 @@ bool QETWidget::translateXinputEvent(const XEvent *ev, QTabletDeviceData *tablet
+@@ -4792,6 +4913,116 @@ bool QETWidget::translateXinputEvent(const XEvent *ev, QTabletDeviceData *tablet
  }
  #endif
  
++inline void processXI2MotionEvent(XIDeviceEvent *devEvent, float *delta_horiz, float *delta_vert)
++{
++    double *val = devEvent->valuators.values;
++    
++    for(int i = 0; i < devEvent->valuators.mask_len*8; ++i)
++    {
++        if(XIMaskIsSet(devEvent->valuators.mask, i))
++        {
++            if(i == X11->xinput_pscroll_horiz_valuator)
++                *delta_horiz += *val;
++            
++            if(i == X11->xinput_pscroll_vert_valuator)
++                *delta_vert += *val;
++            
++            val++;
++        }
++    }
++}
++
++Bool XI2Predicate(Display *, XEvent *event, XPointer)
++{
++    if(event->type == GenericEvent)
++    {
++        if(event->xcookie.extension == X11->xinput_major
++           && event->xcookie.evtype == XI_Motion)
++            return true;
++    }
++    
++    return false;
++}
++
 +// Translate XI2 event
-+//  only support XI_Motion events currently.
-+//  xcookie event data get & free has to be handled by caller.
++//  - only support XI_Motion events currently.
++//  - xcookie event data get & free has to be handled by caller.
++//  - automatically looks for more matching events
 +bool QETWidget::translateXI2Event(XEvent *event)
 +{
-+    XIDeviceEvent *devEvent = (XIDeviceEvent*)event->xcookie.data;
-+    
 +    int evtype = event->xcookie.evtype;
 +    
 +    if(evtype == XI_Motion)
 +    {
-+        double *val = devEvent->valuators.values;
++        XIDeviceEvent *devEvent = (XIDeviceEvent*)event->xcookie.data;
++        XIDeviceEvent lastEvent = *devEvent;
++        XEvent nextEvent;
 +        
-+        for(int i = 0; i < devEvent->valuators.mask_len*8; ++i)
++        float delta_vert = 0;
++        float delta_horiz = 0;
++        
++        processXI2MotionEvent(devEvent, &delta_horiz, &delta_vert);
++        
++        XFreeEventData(X11->display, &event->xcookie);
++        
++        // Compress XI_Motion events
++        while(XCheckIfEvent(X11->display, &nextEvent, &XI2Predicate, NULL))
 +        {
-+            if(XIMaskIsSet(devEvent->valuators.mask, i))
++            if(XGetEventData(X11->display, &nextEvent.xcookie))
 +            {
-+                if(i == X11->xinput_pscroll_horiz_valuator && *val != 0)
-+                {
-+                    
-+                    int delta = (*val) * 120.0 / X11->xinput_pscroll_vert_resolution;
-+                    translateWheelEvent(devEvent->root_x, devEvent->root_y, delta, 0, 0, Qt::Horizontal);
-+                }
++                lastEvent = *((XIDeviceEvent*)nextEvent.xcookie.data);
++                devEvent = &lastEvent;
 +                
-+                if(i == X11->xinput_pscroll_vert_valuator && *val != 0)
-+                {
-+                    int delta = (*val) * 120.0 / X11->xinput_pscroll_vert_resolution;
-+                    translateWheelEvent(devEvent->root_x, devEvent->root_y, delta, 0, 0, Qt::Vertical);
-+                }
++                processXI2MotionEvent(devEvent, &delta_horiz, &delta_vert);
 +                
-+                val++;
++                XFreeEventData(X11->display, &nextEvent.xcookie);
 +            }
 +        }
++        
++        if(delta_vert != 0)
++            translateWheelEvent(lastEvent.root_x, lastEvent.root_y,
++                                delta_vert * 120.0 / X11->xinput_pscroll_vert_resolution,
++                                0, 0, Qt::Vertical);
++        if(delta_horiz != 0)
++            translateWheelEvent(lastEvent.root_x, lastEvent.root_y,
++                                delta_horiz * 120.0 / X11->xinput_pscroll_vert_resolution,
++                                0, 0, Qt::Horizontal);
 +        
 +        // Construct a classic MotionNotify event because XI2 events block
 +        // core events...
@@ -253,21 +294,21 @@ index 69efac2..ead3354 100644
 +        motion.serial      = event->xcookie.serial;
 +        motion.send_event  = event->xcookie.send_event;
 +        motion.display     = event->xcookie.display;
-+        motion.window      = devEvent->event;
-+        motion.root        = devEvent->root;
-+        motion.subwindow   = devEvent->child;
-+        motion.time        = devEvent->time;
-+        motion.x           = devEvent->event_x;
-+        motion.y           = devEvent->event_y;
-+        motion.x_root      = devEvent->root_x;
-+        motion.y_root      = devEvent->root_y;
++        motion.window      = lastEvent.event;
++        motion.root        = lastEvent.root;
++        motion.subwindow   = lastEvent.child;
++        motion.time        = lastEvent.time;
++        motion.x           = lastEvent.event_x;
++        motion.y           = lastEvent.event_y;
++        motion.x_root      = lastEvent.root_x;
++        motion.y_root      = lastEvent.root_y;
 +        
 +        // XI2 has flexible button mask lengths
 +        motion.state       = 0;
-+        for(int i = 0; i < devEvent->buttons.mask_len; ++i)
-+            motion.state |= ((unsigned int)devEvent->buttons.mask[i]) << (i*8);
++        for(int i = 0; i < lastEvent.buttons.mask_len; ++i)
++            motion.state |= ((unsigned int)lastEvent.buttons.mask[i]) << (i*8);
 +        
-+        motion.is_hint     = devEvent->detail;
++        motion.is_hint     = lastEvent.detail;
 +        motion.same_screen = True;
 +        
 +        translateMouseEvent((XEvent*)&motion);
