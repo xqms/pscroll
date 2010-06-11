@@ -1,3 +1,16 @@
+diff --git a/include/evdev-properties.h b/include/evdev-properties.h
+index 3e3c194..20a3d94 100644
+--- a/include/evdev-properties.h
++++ b/include/evdev-properties.h
+@@ -45,6 +45,8 @@
+ #define EVDEV_PROP_WHEEL_TIMEOUT "Evdev Wheel Emulation Timeout"
+ /* CARD8, value range 0-32, 0 to always scroll */
+ #define EVDEV_PROP_WHEEL_BUTTON "Evdev Wheel Emulation Button"
++/* CARD32 */
++#define EVDEV_PROP_WHEEL_RESOLUTION "Evdev Wheel Resolution"
+ 
+ /* Drag lock */
+ /* CARD8, either 1 value or pairs, value range 0-32, 0 to disable a value*/
 diff --git a/src/emuWheel.c b/src/emuWheel.c
 index e7b2f98..79b2051 100644
 --- a/src/emuWheel.c
@@ -26,10 +39,18 @@ index e7b2f98..79b2051 100644
      xf86Msg(X_CONFIG, "%s: EmulateWheelButton: %d, "
              "EmulateWheelInertia: %d, "
 diff --git a/src/evdev.c b/src/evdev.c
-index faab8f3..b9826fa 100644
+index faab8f3..914f048 100644
 --- a/src/evdev.c
 +++ b/src/evdev.c
-@@ -341,6 +341,16 @@ EvdevQueueButtonClicks(InputInfoPtr pInfo, int button, int count)
+@@ -130,6 +130,7 @@ static Atom prop_calibration = 0;
+ static Atom prop_swap = 0;
+ static Atom prop_axis_label = 0;
+ static Atom prop_btn_label = 0;
++static Atom prop_wheel_resolution = 0;
+ #endif
+ 
+ /* All devices the evdev driver has allocated and knows about.
+@@ -341,6 +342,16 @@ EvdevQueueButtonClicks(InputInfoPtr pInfo, int button, int count)
  }
  
  /**
@@ -46,7 +67,7 @@ index faab8f3..b9826fa 100644
   * Coming back from resume may leave us with a file descriptor that can be
   * opened but fails on the first read (ENODEV).
   * In this case, try to open the device until it becomes available or until
-@@ -540,35 +550,33 @@ EvdevProcessRelativeMotionEvent(InputInfoPtr pInfo, struct input_event *ev)
+@@ -540,35 +551,33 @@ EvdevProcessRelativeMotionEvent(InputInfoPtr pInfo, struct input_event *ev)
  
      pEvdev->rel = 1;
  
@@ -109,7 +130,7 @@ index faab8f3..b9826fa 100644
  }
  
  /**
-@@ -805,7 +813,8 @@ EvdevReadInput(InputInfoPtr pInfo)
+@@ -805,7 +814,8 @@ EvdevReadInput(InputInfoPtr pInfo)
      }
  }
  
@@ -119,7 +140,7 @@ index faab8f3..b9826fa 100644
  
  static void
  EvdevPtrCtrlProc(DeviceIntPtr device, PtrCtrl *ctrl)
-@@ -1285,22 +1294,23 @@ EvdevAddRelClass(DeviceIntPtr device)
+@@ -1285,22 +1295,23 @@ EvdevAddRelClass(DeviceIntPtr device)
      if (!TestBit(EV_REL, pEvdev->bitmask))
          return !Success;
  
@@ -155,7 +176,7 @@ index faab8f3..b9826fa 100644
      pEvdev->num_vals = num_axes;
      memset(pEvdev->vals, 0, num_axes * sizeof(int));
      atoms = xalloc(pEvdev->num_vals * sizeof(Atom));
-@@ -1308,9 +1318,7 @@ EvdevAddRelClass(DeviceIntPtr device)
+@@ -1308,9 +1319,7 @@ EvdevAddRelClass(DeviceIntPtr device)
      for (axis = REL_X; axis <= REL_MAX; axis++)
      {
          pEvdev->axis_map[axis] = -1;
@@ -166,7 +187,7 @@ index faab8f3..b9826fa 100644
          if (!TestBit(axis, pEvdev->rel_bitmask))
              continue;
          pEvdev->axis_map[axis] = i;
-@@ -1331,16 +1339,27 @@ EvdevAddRelClass(DeviceIntPtr device)
+@@ -1331,16 +1340,27 @@ EvdevAddRelClass(DeviceIntPtr device)
  
      for (axis = REL_X; axis <= REL_MAX; axis++)
      {
@@ -196,7 +217,7 @@ index faab8f3..b9826fa 100644
      }
  
      xfree(atoms);
-@@ -1718,6 +1737,15 @@ EvdevCacheCompare(InputInfoPtr pInfo, BOOL compare)
+@@ -1718,6 +1738,15 @@ EvdevCacheCompare(InputInfoPtr pInfo, BOOL compare)
                  pInfo->name, strerror(errno));
          goto error;
      }
@@ -205,14 +226,14 @@ index faab8f3..b9826fa 100644
 +    if(pEvdev->emulateWheel.enabled)
 +    {
 +        if(pEvdev->emulateWheel.Y.up_button)
-+            evdev_SetBit(REL_WHEEL, pEvdev->rel_bitmask);
++            evdev_SetBit(REL_WHEEL, rel_bitmask);
 +        if(pEvdev->emulateWheel.X.up_button)
-+            evdev_SetBit(REL_HWHEEL, pEvdev->rel_bitmask);
++            evdev_SetBit(REL_HWHEEL, rel_bitmask);
 +    }
  
      if (!compare) {
          memcpy(pEvdev->rel_bitmask, rel_bitmask, len);
-@@ -2141,6 +2169,20 @@ EvdevPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
+@@ -2141,6 +2170,20 @@ EvdevPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
          EvdevWheelEmuPreInit(pInfo);
          EvdevDragLockPreInit(pInfo);
      }
@@ -233,6 +254,39 @@ index faab8f3..b9826fa 100644
  
      return pInfo;
  }
+@@ -2549,6 +2592,18 @@ EvdevInitProperty(DeviceIntPtr dev)
+             return;
+ 
+         XISetDevicePropertyDeletable(dev, prop_swap, FALSE);
++        
++        prop_wheel_resolution = MakeAtom(EVDEV_PROP_WHEEL_RESOLUTION,
++                                         strlen(EVDEV_PROP_WHEEL_RESOLUTION), TRUE);
++        
++        rc = XIChangeDeviceProperty(dev, prop_wheel_resolution, XA_INTEGER, 16,
++                                    PropModeReplace, 1, &pEvdev->wheel_resolution,
++                                    FALSE);
++        
++        if (rc != Success)
++            return;
++        
++        XISetDevicePropertyDeletable(dev, prop_wheel_resolution, FALSE);
+ 
+ #ifdef HAVE_LABELS
+         /* Axis labelling */
+@@ -2616,6 +2671,13 @@ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
+ 
+         if (!checkonly)
+             pEvdev->swap_axes = *((BOOL*)val->data);
++    } else if (atom == prop_wheel_resolution)
++    {
++        if(val->format != 32 || val->type != XA_INTEGER || val->size != 1)
++            return BadMatch;
++        
++        if(!checkonly)
++            pEvdev->wheel_resolution = *((CARD32*)val->data);
+     } else if (atom == prop_axis_label || atom == prop_btn_label)
+         return BadAccess; /* Axis/Button labels can't be changed */
+ 
 diff --git a/src/evdev.h b/src/evdev.h
 index 38adeaf..2715af8 100644
 --- a/src/evdev.h
