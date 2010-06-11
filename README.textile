@@ -26,9 +26,9 @@ h2. Current status
    ctrl)
 * xserver-xorg-input-evdev sends high precision data.
 * xserver-xorg-input-synaptics sends high precision data.
-  - Circular scrolling is disabled, needs some work.
-  - Coasting is also disabled, scrolling speed is kept internally in
-    scroll clicks per sec (Eww).
+** Circular scrolling is disabled, needs some work.
+** Coasting is also disabled, scrolling speed is kept internally in
+   scroll clicks per sec (Eww).
 
 h2. What needs to be done?
 
