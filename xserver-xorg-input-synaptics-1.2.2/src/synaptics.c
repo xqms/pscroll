@@ -1810,7 +1810,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
     SynapticsParameters *para = &priv->synpara;
     int delay = 1000000000;
 
-    sd->left = sd->right = sd->up = sd->down = 0;
+    memset(sd, 0, sizeof(struct ScrollData));
 
     if (priv->synpara.touchpad_off == 2) {
 	stop_coasting(priv);
@@ -1850,6 +1850,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 		    priv->vert_scroll_twofinger_on = TRUE;
 		    priv->vert_scroll_edge_on = FALSE;
 		    priv->scroll_y = hw->y;
+		    priv->scroll_last_y = hw->y;
 		    DBG(7, ErrorF("vert two-finger scroll detected\n"));
 		}
 		if (!priv->horiz_scroll_twofinger_on &&
@@ -1857,6 +1858,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 		    priv->horiz_scroll_twofinger_on = TRUE;
 		    priv->horiz_scroll_edge_on = FALSE;
 		    priv->scroll_x = hw->x;
+		    priv->scroll_last_x = hw->x;
 		    DBG(7, ErrorF("horiz two-finger scroll detected\n"));
 		}
 	    }
@@ -1867,12 +1869,14 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 		    (edge & RIGHT_EDGE)) {
 		    priv->vert_scroll_edge_on = TRUE;
 		    priv->scroll_y = hw->y;
+		    priv->scroll_last_y = hw->y;
 		    DBG(7, ErrorF("vert edge scroll detected on right edge\n"));
 		}
 		if ((para->scroll_edge_horiz) && (para->scroll_dist_horiz != 0) &&
 		    (edge & BOTTOM_EDGE)) {
 		    priv->horiz_scroll_edge_on = TRUE;
 		    priv->scroll_x = hw->x;
+		    priv->scroll_last_x = hw->x;
 		    DBG(7, ErrorF("horiz edge scroll detected on bottom edge\n"));
 		}
 	    }
@@ -1976,7 +1980,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
     if (priv->vert_scroll_edge_on || priv->vert_scroll_twofinger_on) {
 	/* + = down, - = up */
 	int delta = para->scroll_dist_vert;
-	sd->delta_vert = delta;
+	
 	if (delta > 0) {
 	    while (hw->y - priv->scroll_y > delta) {
 		sd->down++;
@@ -1987,11 +1991,14 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 		priv->scroll_y -= delta;
 	    }
 	}
+	
+	sd->delta_vert = priv->scroll_last_y - hw->y;
+	priv->scroll_last_y = hw->y;
     }
     if (priv->horiz_scroll_edge_on || priv->horiz_scroll_twofinger_on) {
 	/* + = right, - = left */
 	int delta = para->scroll_dist_horiz;
-	sd->delta_horiz = delta;
+	
 	if (delta > 0) {
 	    while (hw->x - priv->scroll_x > delta) {
 		sd->right++;
@@ -2002,6 +2009,9 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 		priv->scroll_x -= delta;
 	    }
 	}
+	
+	sd->delta_horiz = priv->scroll_x - hw->x;
+	priv->scroll_last_x = hw->x;
     }
     if (priv->circ_scroll_on) {
 	/* + = counter clockwise, - = clockwise */
@@ -2245,7 +2255,7 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
 	dx = dy = 0;
 
     if (dx || dy || scroll.delta_horiz || scroll.delta_vert)
-	xf86PostMotionEvent(local->dev, 0, 0, 2, dx, dy,
+	xf86PostMotionEvent(local->dev, 0, 0, 4, dx, dy,
 			    scroll.delta_horiz, scroll.delta_vert);
 
     if (priv->mid_emu_state == MBE_LEFT_CLICK)
