@@ -829,8 +829,8 @@ static void InitAxesLabels(Atom *labels, int nlabels)
     {
         default:
         case 4:
-            labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_WHEEL);
-            labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_HWHEEL);
+            labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_WHEEL);
+            labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HWHEEL);
         case 2:
             labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_Y);
         case 1:
