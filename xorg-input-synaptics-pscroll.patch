@@ -1,0 +1,85 @@
+diff --git a/src/synaptics.c b/src/synaptics.c
+index 9997674..4455224 100644
+--- a/src/synaptics.c
++++ b/src/synaptics.c
+@@ -828,6 +828,9 @@ static void InitAxesLabels(Atom *labels, int nlabels)
+     switch(nlabels)
+     {
+         default:
++        case 4:
++            labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_WHEEL);
++            labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_HWHEEL);
+         case 2:
+             labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_Y);
+         case 1:
+@@ -871,9 +874,9 @@ DeviceInit(DeviceIntPtr dev)
+     int min, max;
+ #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
+     Atom btn_labels[SYN_MAX_BUTTONS] = { 0 };
+-    Atom axes_labels[2] = { 0 };
++    Atom axes_labels[4] = { 0 };
+ 
+-    InitAxesLabels(axes_labels, 2);
++    InitAxesLabels(axes_labels, 4);
+     InitButtonLabels(btn_labels, SYN_MAX_BUTTONS);
+ #endif
+ 
+@@ -944,6 +947,21 @@ DeviceInit(DeviceIntPtr dev)
+     xf86MotionHistoryAllocate(local);
+ #endif
+ 
++    /* Scroll valuators */
++    xf86InitValuatorAxisStruct(dev, 2,
++            axes_labels[2],
++            -1, -1, priv->synpara.scroll_dist_horiz, 0,
++            priv->synpara.scroll_dist_horiz);
++    xf86InitValuatorDefaults(dev, 2);
++    xf86SetValuatorAxisNoIntegration(dev, 2, 1);
++    
++    xf86InitValuatorAxisStruct(dev, 3,
++            axes_labels[3],
++            -1, -1, priv->synpara.scroll_dist_vert, 0,
++            priv->synpara.scroll_dist_vert);
++    xf86InitValuatorDefaults(dev, 3);
++    xf86SetValuatorAxisNoIntegration(dev, 3, 1);
++    
+     if (!alloc_param_data(local))
+ 	return !Success;
+ 
+@@ -1737,6 +1755,8 @@ ComputeDeltas(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 
+ struct ScrollData {
+     int left, right, up, down;
++    int delta_vert;
++    int delta_horiz;
+ };
+ 
+ static void
+@@ -1956,6 +1976,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+     if (priv->vert_scroll_edge_on || priv->vert_scroll_twofinger_on) {
+ 	/* + = down, - = up */
+ 	int delta = para->scroll_dist_vert;
++	sd->delta_vert = delta;
+ 	if (delta > 0) {
+ 	    while (hw->y - priv->scroll_y > delta) {
+ 		sd->down++;
+@@ -1970,6 +1991,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+     if (priv->horiz_scroll_edge_on || priv->horiz_scroll_twofinger_on) {
+ 	/* + = right, - = left */
+ 	int delta = para->scroll_dist_horiz;
++	sd->delta_horiz = delta;
+ 	if (delta > 0) {
+ 	    while (hw->x - priv->scroll_x > delta) {
+ 		sd->right++;
+@@ -2222,8 +2244,9 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
+     if (!inside_active_area)
+ 	dx = dy = 0;
+ 
+-    if (dx || dy)
+-	xf86PostMotionEvent(local->dev, 0, 0, 2, dx, dy);
++    if (dx || dy || scroll.delta_horiz || scroll.delta_vert)
++	xf86PostMotionEvent(local->dev, 0, 0, 2, dx, dy,
++			    scroll.delta_horiz, scroll.delta_vert);
+ 
+     if (priv->mid_emu_state == MBE_LEFT_CLICK)
+     {
