@@ -901,7 +901,7 @@ DeviceInit(DeviceIntPtr dev)
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) == 0
 			    miPointerGetMotionBufferSize()
 #else
-			    GetMotionHistorySize(), 2
+			    GetMotionHistorySize(), 4
 #endif
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
                             , axes_labels
