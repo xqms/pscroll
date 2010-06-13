@@ -1,5 +1,5 @@
 diff --git a/src/synaptics.c b/src/synaptics.c
-index 9997674..4455224 100644
+index 9997674..b109b68 100644
 --- a/src/synaptics.c
 +++ b/src/synaptics.c
 @@ -828,6 +828,9 @@ static void InitAxesLabels(Atom *labels, int nlabels)
@@ -7,8 +7,8 @@ index 9997674..4455224 100644
      {
          default:
 +        case 4:
-+            labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_WHEEL);
-+            labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_HWHEEL);
++            labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_WHEEL);
++            labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HWHEEL);
          case 2:
              labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_Y);
          case 1:
@@ -24,6 +24,15 @@ index 9997674..4455224 100644
      InitButtonLabels(btn_labels, SYN_MAX_BUTTONS);
  #endif
  
+@@ -898,7 +901,7 @@ DeviceInit(DeviceIntPtr dev)
+ #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) == 0
+ 			    miPointerGetMotionBufferSize()
+ #else
+-			    GetMotionHistorySize(), 2
++			    GetMotionHistorySize(), 4
+ #endif
+ #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
+                             , axes_labels
 @@ -944,6 +947,21 @@ DeviceInit(DeviceIntPtr dev)
      xf86MotionHistoryAllocate(local);
  #endif
@@ -55,31 +64,105 @@ index 9997674..4455224 100644
  };
  
  static void
-@@ -1956,6 +1976,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+@@ -1790,7 +1810,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+     SynapticsParameters *para = &priv->synpara;
+     int delay = 1000000000;
+ 
+-    sd->left = sd->right = sd->up = sd->down = 0;
++    memset(sd, 0, sizeof(struct ScrollData));
+ 
+     if (priv->synpara.touchpad_off == 2) {
+ 	stop_coasting(priv);
+@@ -1830,6 +1850,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 		    priv->vert_scroll_twofinger_on = TRUE;
+ 		    priv->vert_scroll_edge_on = FALSE;
+ 		    priv->scroll_y = hw->y;
++		    priv->scroll_last_y = hw->y;
+ 		    DBG(7, ErrorF("vert two-finger scroll detected\n"));
+ 		}
+ 		if (!priv->horiz_scroll_twofinger_on &&
+@@ -1837,6 +1858,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 		    priv->horiz_scroll_twofinger_on = TRUE;
+ 		    priv->horiz_scroll_edge_on = FALSE;
+ 		    priv->scroll_x = hw->x;
++		    priv->scroll_last_x = hw->x;
+ 		    DBG(7, ErrorF("horiz two-finger scroll detected\n"));
+ 		}
+ 	    }
+@@ -1847,12 +1869,14 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 		    (edge & RIGHT_EDGE)) {
+ 		    priv->vert_scroll_edge_on = TRUE;
+ 		    priv->scroll_y = hw->y;
++		    priv->scroll_last_y = hw->y;
+ 		    DBG(7, ErrorF("vert edge scroll detected on right edge\n"));
+ 		}
+ 		if ((para->scroll_edge_horiz) && (para->scroll_dist_horiz != 0) &&
+ 		    (edge & BOTTOM_EDGE)) {
+ 		    priv->horiz_scroll_edge_on = TRUE;
+ 		    priv->scroll_x = hw->x;
++		    priv->scroll_last_x = hw->x;
+ 		    DBG(7, ErrorF("horiz edge scroll detected on bottom edge\n"));
+ 		}
+ 	    }
+@@ -1956,6 +1980,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
      if (priv->vert_scroll_edge_on || priv->vert_scroll_twofinger_on) {
  	/* + = down, - = up */
  	int delta = para->scroll_dist_vert;
-+	sd->delta_vert = delta;
++	
  	if (delta > 0) {
  	    while (hw->y - priv->scroll_y > delta) {
  		sd->down++;
-@@ -1970,6 +1991,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+@@ -1966,10 +1991,14 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 		priv->scroll_y -= delta;
+ 	    }
+ 	}
++	
++	sd->delta_vert = priv->scroll_last_y - hw->y;
++	priv->scroll_last_y = hw->y;
+     }
      if (priv->horiz_scroll_edge_on || priv->horiz_scroll_twofinger_on) {
  	/* + = right, - = left */
  	int delta = para->scroll_dist_horiz;
-+	sd->delta_horiz = delta;
++	
  	if (delta > 0) {
  	    while (hw->x - priv->scroll_x > delta) {
  		sd->right++;
-@@ -2222,8 +2244,9 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
+@@ -1980,6 +2009,9 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 		priv->scroll_x -= delta;
+ 	    }
+ 	}
++	
++	sd->delta_horiz = priv->scroll_x - hw->x;
++	priv->scroll_last_x = hw->x;
+     }
+     if (priv->circ_scroll_on) {
+ 	/* + = counter clockwise, - = clockwise */
+@@ -2222,8 +2254,9 @@ HandleState(LocalDevicePtr local, struct SynapticsHwState *hw)
      if (!inside_active_area)
  	dx = dy = 0;
  
 -    if (dx || dy)
 -	xf86PostMotionEvent(local->dev, 0, 0, 2, dx, dy);
 +    if (dx || dy || scroll.delta_horiz || scroll.delta_vert)
-+	xf86PostMotionEvent(local->dev, 0, 0, 2, dx, dy,
++	xf86PostMotionEvent(local->dev, 0, 0, 4, dx, dy,
 +			    scroll.delta_horiz, scroll.delta_vert);
  
      if (priv->mid_emu_state == MBE_LEFT_CLICK)
      {
+diff --git a/src/synapticsstr.h b/src/synapticsstr.h
+index 2986173..dc45127 100644
+--- a/src/synapticsstr.h
++++ b/src/synapticsstr.h
+@@ -171,8 +171,10 @@ typedef struct _SynapticsPrivateRec
+ 
+     SynapticsMoveHistRec move_hist[SYNAPTICS_MOVE_HISTORY]; /* movement history */
+     int hist_index;			/* Last added entry in move_hist[] */
+-    int scroll_y;			/* last y-scroll position */
+-    int scroll_x;			/* last x-scroll position */
++    int scroll_y;			/* last y-scroll position (clickety) */
++    int scroll_x;			/* last x-scroll position (clickety) */
++    int scroll_last_y;			/* last y-scroll position (smooth) */
++    int scroll_last_x;			/* last x-scroll position (smooth) */
+     double scroll_a;			/* last angle-scroll position */
+     int count_packet_finger;		/* packet counter with finger on the touchpad */
+     int button_delay_millis;		/* button delay for 3rd button emulation */
