@@ -183,8 +183,10 @@ typedef struct _SynapticsPrivateRec
     Bool absolute_events;               /* post absolute motion events instead of relative */
     SynapticsMoveHistRec move_hist[SYNAPTICS_MOVE_HISTORY]; /* movement history */
     int hist_index;			/* Last added entry in move_hist[] */
-    int scroll_y;			/* last y-scroll position */
-    int scroll_x;			/* last x-scroll position */
+    int scroll_y;			/* last y-scroll position (clickety) */
+    int scroll_x;			/* last x-scroll position (clickety) */
+    int scroll_last_y;			/* last y-scroll position (smooth) */
+    int scroll_last_x;			/* last x-scroll position (smooth) */
     double scroll_a;			/* last angle-scroll position */
     int count_packet_finger;		/* packet counter with finger on the touchpad */
     int button_delay_millis;		/* button delay for 3rd button emulation */
