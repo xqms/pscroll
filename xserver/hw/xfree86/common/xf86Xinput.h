@@ -190,6 +190,7 @@ extern _X_EXPORT void xf86ProcessCommonOptions(InputInfoPtr pInfo, pointer optio
 extern _X_EXPORT void xf86InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval,
 				int maxval, int resolution, int min_res,
 				int max_res);
+extern _X_EXPORT void xf86SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration);
 extern _X_EXPORT void xf86InitValuatorDefaults(DeviceIntPtr dev, int axnum);
 extern _X_EXPORT void xf86AddEnabledDevice(InputInfoPtr pInfo);
 extern _X_EXPORT void xf86RemoveEnabledDevice(InputInfoPtr pInfo);

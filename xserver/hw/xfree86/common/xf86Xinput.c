@@ -1309,6 +1309,12 @@ xf86InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, 
 			   max_res);
 }
 
+void
+xf86SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration)
+{
+    SetValuatorAxisNoIntegration(dev, axnum, no_integration);
+}
+
 /*
  * Set the valuator values to be in synch with dix/event.c
  * DefineInitialRootWindow().

@@ -751,10 +751,16 @@ moveRelative(DeviceIntPtr dev, int *x, int *y,
     i = (first > 2) ? 0 : 2;
     for (; i < num; i++)
     {
-        dev->last.valuators[i + first] += valuators[i];
-        if (dev->valuator->mode == Absolute)
+        if(dev->valuator->axes[i + first].no_integration)
+        {
+            dev->last.valuators[i + first] = valuators[i];
+        }
+        else
+        {
+            dev->last.valuators[i + first] += valuators[i];
             clipAxis(dev, i, &dev->last.valuators[i + first]);
-        valuators[i] = dev->last.valuators[i + first];
+            valuators[i] = dev->last.valuators[i + first];
+        }
     }
 }
 
