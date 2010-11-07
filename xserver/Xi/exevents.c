@@ -1168,7 +1168,7 @@ SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration)
         return;
 
     ax = dev->valuator->axes + axnum;
-    
+
     ax->no_integration = no_integration;
 }
 

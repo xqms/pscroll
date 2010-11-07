@@ -131,7 +131,7 @@ typedef struct {
     BOOL swap_axes;
     BOOL invert_x;
     BOOL invert_y;
-    
+
     int wheel_resolution;
 
     int delta[REL_CNT];

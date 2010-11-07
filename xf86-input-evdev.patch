@@ -12,34 +12,32 @@ index 7df2876..5344a5a 100644
  /* Drag lock */
  /* CARD8, either 1 value or pairs, value range 0-32, 0 to disable a value*/
 diff --git a/src/emuWheel.c b/src/emuWheel.c
-index 9a53211..b7d30f1 100644
+index 9a53211..98c6e44 100644
 --- a/src/emuWheel.c
 +++ b/src/emuWheel.c
-@@ -185,7 +185,10 @@ EvdevWheelEmuInertia(InputInfoPtr pInfo, WheelAxisPtr axis, int value)
- 	button = axis->down_button;
+@@ -186,6 +186,9 @@ EvdevWheelEmuInertia(InputInfoPtr pInfo, WheelAxisPtr axis, int value)
  	inertia = pEvdev->emulateWheel.inertia;
      }
--
-+    
+ 
 +    /* Produce valuator events */
 +    EvdevInjectRelativeMotion(pInfo, axis->code, -value);
-+    
++
      /* Produce button press events for wheel motion */
      while(abs(axis->traveled_distance) > pEvdev->emulateWheel.inertia) {
  	axis->traveled_distance -= inertia;
-@@ -328,6 +331,10 @@ EvdevWheelEmuPreInit(InputInfoPtr pInfo)
-     /* Used by the inertia code */
+@@ -329,6 +332,10 @@ EvdevWheelEmuPreInit(InputInfoPtr pInfo)
      pEvdev->emulateWheel.X.traveled_distance = 0;
      pEvdev->emulateWheel.Y.traveled_distance = 0;
-+    
+ 
 +    /* Valuator to post events to */
 +    pEvdev->emulateWheel.X.code = REL_HWHEEL;
 +    pEvdev->emulateWheel.Y.code = REL_WHEEL;
- 
++
      xf86Msg(X_CONFIG, "%s: EmulateWheelButton: %d, "
              "EmulateWheelInertia: %d, "
+             "EmulateWheelTimeout: %d\n",
 diff --git a/src/evdev.c b/src/evdev.c
-index 040cfdc..add22e1 100644
+index 040cfdc..5078ffc 100644
 --- a/src/evdev.c
 +++ b/src/evdev.c
 @@ -125,6 +125,7 @@ static Atom prop_calibration = 0;
@@ -72,7 +70,13 @@ index 040cfdc..add22e1 100644
  
      /* Get the signed value, earlier kernels had this as unsigned */
      value = ev->value;
--
++    
++    if(ev->code == REL_WHEEL) {
++        if (value > 0)
++            EvdevQueueButtonClicks(pInfo, wheel_up_button, value);
++        else if (value < 0)
++            EvdevQueueButtonClicks(pInfo, wheel_down_button, -value);
+ 
 -    switch (ev->code) {
 -        case REL_WHEEL:
 -            if (value > 0)
@@ -80,7 +84,9 @@ index 040cfdc..add22e1 100644
 -            else if (value < 0)
 -                EvdevQueueButtonClicks(pInfo, wheel_down_button, -value);
 -            break;
--
++        value *= pEvdev->wheel_resolution;
++    }
+ 
 -        case REL_DIAL:
 -        case REL_HWHEEL:
 -            if (value > 0)
@@ -88,69 +94,52 @@ index 040cfdc..add22e1 100644
 -            else if (value < 0)
 -                EvdevQueueButtonClicks(pInfo, wheel_left_button, -value);
 -            break;
--
--        /* We don't post wheel events as axis motion. */
--        default:
--            /* Ignore EV_REL events if we never set up for them. */
--            if (!(pEvdev->flags & EVDEV_RELATIVE_EVENTS))
--                return;
--
--            /* Handle mouse wheel emulation */
--            if (EvdevWheelEmuFilterMotion(pInfo, ev))
--                return;
--
--            pEvdev->rel_queued = 1;
--            pEvdev->delta[ev->code] += value;
--            break;
--    }
-+    
-+    if(ev->code == REL_WHEEL) {
-+        if (value > 0)
-+            EvdevQueueButtonClicks(pInfo, wheel_up_button, value);
-+        else if (value < 0)
-+            EvdevQueueButtonClicks(pInfo, wheel_down_button, -value);
-+        
-+        value *= pEvdev->wheel_resolution;
-+    }
-+    
 +    if(ev->code == REL_DIAL || ev->code == REL_HWHEEL) {
 +        if (value > 0)
 +            EvdevQueueButtonClicks(pInfo, wheel_right_button, value);
 +        else if (value < 0)
 +            EvdevQueueButtonClicks(pInfo, wheel_left_button, -value);
-+        
+ 
+-        /* We don't post wheel events as axis motion. */
+-        default:
+-            /* Ignore EV_REL events if we never set up for them. */
+-            if (!(pEvdev->flags & EVDEV_RELATIVE_EVENTS))
+-                return;
 +        value *= pEvdev->wheel_resolution;
 +    }
-+
+ 
+-            /* Handle mouse wheel emulation */
+-            if (EvdevWheelEmuFilterMotion(pInfo, ev))
+-                return;
 +    /* Ignore EV_REL events if we never set up for them. */
 +    if (!(pEvdev->flags & EVDEV_RELATIVE_EVENTS))
 +        return;
-+    
+ 
+-            pEvdev->rel_queued = 1;
+-            pEvdev->delta[ev->code] += value;
+-            break;
+-    }
 +    /* Handle mouse wheel emulation */
 +    if (EvdevWheelEmuFilterMotion(pInfo, ev))
 +        return;
-+    
++
 +    pEvdev->rel_queued = 1;
 +    pEvdev->delta[ev->code] += value;
  }
  
  /**
-@@ -882,7 +892,8 @@ EvdevReadInput(InputInfoPtr pInfo)
-     }
+@@ -883,6 +893,7 @@ EvdevReadInput(InputInfoPtr pInfo)
  }
  
--#define TestBit(bit, array) ((array[(bit) / LONG_BITS]) & (1L << ((bit) % LONG_BITS)))
-+#define TestBit(bit, array) ((array[(bit) / LONG_BITS]) &  (1L << ((bit) % LONG_BITS)))
+ #define TestBit(bit, array) ((array[(bit) / LONG_BITS]) & (1L << ((bit) % LONG_BITS)))
 +#define evdev_SetBit(bit, array)  ((array[(bit) / LONG_BITS]) |= (1L << ((bit) % LONG_BITS)))
  
  static void
  EvdevPtrCtrlProc(DeviceIntPtr device, PtrCtrl *ctrl)
-@@ -1389,20 +1400,22 @@ EvdevAddRelClass(DeviceIntPtr device)
- 
+@@ -1390,19 +1401,21 @@ EvdevAddRelClass(DeviceIntPtr device)
      if (!TestBit(EV_REL, pEvdev->bitmask))
          return !Success;
--
-+    
+ 
 +    /* If scroll emulation is turned on, enable
 +     * REL_WHEEL and REL_HWHEEL axes even if the
 +     * device doesn't support them */
@@ -161,7 +150,7 @@ index 040cfdc..add22e1 100644
 +        if(pEvdev->emulateWheel.X.up_button)
 +            evdev_SetBit(REL_HWHEEL, pEvdev->rel_bitmask);
 +    }
-+    
++
      num_axes = EvdevCountBits(pEvdev->rel_bitmask, NLONGS(REL_MAX));
      if (num_axes < 1)
          return !Success;
@@ -185,7 +174,7 @@ index 040cfdc..add22e1 100644
 -        /* We don't post wheel events, so ignore them here too */
 -        if (axis == REL_WHEEL || axis == REL_HWHEEL || axis == REL_DIAL)
 -            continue;
-+        
++
          if (!TestBit(axis, pEvdev->rel_bitmask))
              continue;
          pEvdev->axis_map[axis] = i;
@@ -198,13 +187,13 @@ index 040cfdc..add22e1 100644
  
          if (axnum == -1)
              continue;
-+        
++
 +        if(axis == REL_WHEEL || axis == REL_HWHEEL || axis == REL_DIAL)
 +        {
 +            resolution = pEvdev->wheel_resolution;
 +            no_integration = 1;
 +        }
-+        
++
          xf86InitValuatorAxisStruct(device, axnum,
  #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
                  atoms[axnum],
@@ -216,11 +205,10 @@ index 040cfdc..add22e1 100644
      }
  
      free(atoms);
-@@ -1794,6 +1815,15 @@ EvdevCacheCompare(InputInfoPtr pInfo, BOOL compare)
-                 pInfo->name, strerror(errno));
+@@ -1795,6 +1816,15 @@ EvdevCacheCompare(InputInfoPtr pInfo, BOOL compare)
          goto error;
      }
-+    
+ 
 +    // If wheel emulation is enabled, we provide wheel valuators
 +    if(pEvdev->emulateWheel.enabled)
 +    {
@@ -229,16 +217,16 @@ index 040cfdc..add22e1 100644
 +        if(pEvdev->emulateWheel.X.up_button)
 +            evdev_SetBit(REL_HWHEEL, rel_bitmask);
 +    }
- 
++
      if (!compare) {
          memcpy(pEvdev->rel_bitmask, rel_bitmask, len);
-@@ -2218,6 +2248,20 @@ EvdevPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
-         pInfo->flags |= XI86_CONFIGURED;
+     } else if (memcmp(pEvdev->rel_bitmask, rel_bitmask, len)) {
+@@ -2219,6 +2249,20 @@ EvdevPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
          return pInfo;
      }
-+    
+ 
 +    pEvdev->wheel_resolution = xf86SetIntOption(pInfo->options, "WheelResolution", pEvdev->emulateWheel.enabled ? 42 : 1);
-+    
++
 +    if(pEvdev->wheel_resolution <= 0) {
 +        xf86Msg(X_WARNING, "%s: Invalid WheelResolution value: %d\n",
 +                pInfo->name, pEvdev->wheel_resolution);
@@ -250,28 +238,29 @@ index 040cfdc..add22e1 100644
 +        else
 +            pEvdev->wheel_resolution = 1;
 +    }
- 
++
  
      xf86DeleteInput(pInfo, 0);
-@@ -2679,6 +2723,18 @@ EvdevInitProperty(DeviceIntPtr dev)
-             return;
+     return NULL;
+@@ -2680,6 +2724,18 @@ EvdevInitProperty(DeviceIntPtr dev)
  
          XISetDevicePropertyDeletable(dev, prop_swap, FALSE);
-+        
+ 
 +        prop_wheel_resolution = MakeAtom(EVDEV_PROP_WHEEL_RESOLUTION,
 +                                         strlen(EVDEV_PROP_WHEEL_RESOLUTION), TRUE);
-+        
++
 +        rc = XIChangeDeviceProperty(dev, prop_wheel_resolution, XA_INTEGER, 16,
 +                                    PropModeReplace, 1, &pEvdev->wheel_resolution,
 +                                    FALSE);
-+        
++
 +        if (rc != Success)
 +            return;
 +        
 +        XISetDevicePropertyDeletable(dev, prop_wheel_resolution, FALSE);
- 
++
  #ifdef HAVE_LABELS
          /* Axis labelling */
+         if ((pEvdev->num_vals > 0) && (prop_axis_label = XIGetKnownProperty(AXIS_LABEL_PROP)))
 @@ -2739,6 +2795,13 @@ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
  
          if (!checkonly)
@@ -280,14 +269,14 @@ index 040cfdc..add22e1 100644
 +    {
 +        if(val->format != 32 || val->type != XA_INTEGER || val->size != 1)
 +            return BadMatch;
-+        
++
 +        if(!checkonly)
 +            pEvdev->wheel_resolution = *((CARD32*)val->data);
      } else if (atom == prop_axis_label || atom == prop_btn_label)
          return BadAccess; /* Axis/Button labels can't be changed */
  
 diff --git a/src/evdev.h b/src/evdev.h
-index 7c17ca4..41a47de 100644
+index 7c17ca4..fa85307 100644
 --- a/src/evdev.h
 +++ b/src/evdev.h
 @@ -102,6 +102,7 @@ typedef struct {
@@ -298,15 +287,15 @@ index 7c17ca4..41a47de 100644
  } WheelAxis, *WheelAxisPtr;
  
  /* Event queue used to defer keyboard/button events until EV_SYN time. */
-@@ -130,6 +131,8 @@ typedef struct {
-     BOOL swap_axes;
+@@ -131,6 +132,8 @@ typedef struct {
      BOOL invert_x;
      BOOL invert_y;
-+    
-+    int wheel_resolution;
  
++    int wheel_resolution;
++
      int delta[REL_CNT];
      unsigned int abs_queued, rel_queued, prox_queued;
+     unsigned int abs_prox;  /* valuators posted while out of prox? */
 @@ -209,6 +212,8 @@ void EvdevPostAbsoluteMotionEvents(InputInfoPtr pInfo, int num_v, int first_v,
  				   int v[MAX_VALUATORS]);
  unsigned int EvdevUtilButtonEventToButtonNumber(EvdevPtr pEvdev, int code);

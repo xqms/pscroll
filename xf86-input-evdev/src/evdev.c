@@ -605,27 +605,27 @@ EvdevProcessRelativeMotionEvent(InputInfoPtr pInfo, struct input_event *ev)
             EvdevQueueButtonClicks(pInfo, wheel_up_button, value);
         else if (value < 0)
             EvdevQueueButtonClicks(pInfo, wheel_down_button, -value);
-        
+
         value *= pEvdev->wheel_resolution;
     }
-    
+
     if(ev->code == REL_DIAL || ev->code == REL_HWHEEL) {
         if (value > 0)
             EvdevQueueButtonClicks(pInfo, wheel_right_button, value);
         else if (value < 0)
             EvdevQueueButtonClicks(pInfo, wheel_left_button, -value);
-        
+
         value *= pEvdev->wheel_resolution;
     }
 
     /* Ignore EV_REL events if we never set up for them. */
     if (!(pEvdev->flags & EVDEV_RELATIVE_EVENTS))
         return;
-    
+
     /* Handle mouse wheel emulation */
     if (EvdevWheelEmuFilterMotion(pInfo, ev))
         return;
-    
+
     pEvdev->rel_queued = 1;
     pEvdev->delta[ev->code] += value;
 }
@@ -892,7 +892,7 @@ EvdevReadInput(InputInfoPtr pInfo)
     }
 }
 
-#define TestBit(bit, array) ((array[(bit) / LONG_BITS]) &  (1L << ((bit) % LONG_BITS)))
+#define TestBit(bit, array) ((array[(bit) / LONG_BITS]) & (1L << ((bit) % LONG_BITS)))
 #define evdev_SetBit(bit, array)  ((array[(bit) / LONG_BITS]) |= (1L << ((bit) % LONG_BITS)))
 
 static void
@@ -1400,7 +1400,7 @@ EvdevAddRelClass(DeviceIntPtr device)
 
     if (!TestBit(EV_REL, pEvdev->bitmask))
         return !Success;
-    
+
     /* If scroll emulation is turned on, enable
      * REL_WHEEL and REL_HWHEEL axes even if the
      * device doesn't support them */
@@ -1411,7 +1411,7 @@ EvdevAddRelClass(DeviceIntPtr device)
         if(pEvdev->emulateWheel.X.up_button)
             evdev_SetBit(REL_HWHEEL, pEvdev->rel_bitmask);
     }
-    
+
     num_axes = EvdevCountBits(pEvdev->rel_bitmask, NLONGS(REL_MAX));
     if (num_axes < 1)
         return !Success;
@@ -1431,7 +1431,7 @@ EvdevAddRelClass(DeviceIntPtr device)
     for (axis = REL_X; i < MAX_VALUATORS && axis <= REL_MAX; axis++)
     {
         pEvdev->axis_map[axis] = -1;
-        
+
         if (!TestBit(axis, pEvdev->rel_bitmask))
             continue;
         pEvdev->axis_map[axis] = i;
@@ -1461,13 +1461,13 @@ EvdevAddRelClass(DeviceIntPtr device)
 
         if (axnum == -1)
             continue;
-        
+
         if(axis == REL_WHEEL || axis == REL_HWHEEL || axis == REL_DIAL)
         {
             resolution = pEvdev->wheel_resolution;
             no_integration = 1;
         }
-        
+
         xf86InitValuatorAxisStruct(device, axnum,
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
                 atoms[axnum],
@@ -1815,7 +1815,7 @@ EvdevCacheCompare(InputInfoPtr pInfo, BOOL compare)
                 pInfo->name, strerror(errno));
         goto error;
     }
-    
+
     // If wheel emulation is enabled, we provide wheel valuators
     if(pEvdev->emulateWheel.enabled)
     {
@@ -2248,9 +2248,9 @@ EvdevPreInit(InputDriverPtr drv, IDevPtr dev, int flags)
         pInfo->flags |= XI86_CONFIGURED;
         return pInfo;
     }
-    
+
     pEvdev->wheel_resolution = xf86SetIntOption(pInfo->options, "WheelResolution", pEvdev->emulateWheel.enabled ? 42 : 1);
-    
+
     if(pEvdev->wheel_resolution <= 0) {
         xf86Msg(X_WARNING, "%s: Invalid WheelResolution value: %d\n",
                 pInfo->name, pEvdev->wheel_resolution);
@@ -2723,14 +2723,14 @@ EvdevInitProperty(DeviceIntPtr dev)
             return;
 
         XISetDevicePropertyDeletable(dev, prop_swap, FALSE);
-        
+
         prop_wheel_resolution = MakeAtom(EVDEV_PROP_WHEEL_RESOLUTION,
                                          strlen(EVDEV_PROP_WHEEL_RESOLUTION), TRUE);
-        
+
         rc = XIChangeDeviceProperty(dev, prop_wheel_resolution, XA_INTEGER, 16,
                                     PropModeReplace, 1, &pEvdev->wheel_resolution,
                                     FALSE);
-        
+
         if (rc != Success)
             return;
         
@@ -2799,7 +2799,7 @@ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
     {
         if(val->format != 32 || val->type != XA_INTEGER || val->size != 1)
             return BadMatch;
-        
+
         if(!checkonly)
             pEvdev->wheel_resolution = *((CARD32*)val->data);
     } else if (atom == prop_axis_label || atom == prop_btn_label)

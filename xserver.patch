@@ -1,5 +1,5 @@
 diff --git a/Xi/exevents.c b/Xi/exevents.c
-index e19e207..7f52e42 100644
+index e19e207..7cb877b 100644
 --- a/Xi/exevents.c
 +++ b/Xi/exevents.c
 @@ -1151,6 +1151,25 @@ InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, int
@@ -23,7 +23,7 @@ index e19e207..7f52e42 100644
 +        return;
 +
 +    ax = dev->valuator->axes + axnum;
-+    
++
 +    ax->no_integration = no_integration;
  }
  

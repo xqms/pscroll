@@ -1093,14 +1093,14 @@ DeviceInit(DeviceIntPtr dev)
             priv->synpara.scroll_dist_horiz);
     xf86InitValuatorDefaults(dev, 2);
     xf86SetValuatorAxisNoIntegration(dev, 2, 1);
-    
+
     xf86InitValuatorAxisStruct(dev, 3,
             axes_labels[3],
             -1, -1, priv->synpara.scroll_dist_vert, 0,
             priv->synpara.scroll_dist_vert);
     xf86InitValuatorDefaults(dev, 3);
     xf86SetValuatorAxisNoIntegration(dev, 3, 1);
-    
+
     InitDeviceProperties(pInfo);
     XIRegisterPropertyHandler(pInfo->dev, SetProperty, NULL, NULL);
 
@@ -2081,7 +2081,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
     if (priv->vert_scroll_edge_on || priv->vert_scroll_twofinger_on) {
 	/* + = down, - = up */
 	int delta = para->scroll_dist_vert;
-	
+
 	if (delta > 0) {
 	    while (hw->y - priv->scroll_y > delta) {
 		sd->down++;
@@ -2092,14 +2092,14 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 		priv->scroll_y -= delta;
 	    }
 	}
-	
+
 	sd->delta_vert = priv->scroll_last_y - hw->y;
 	priv->scroll_last_y = hw->y;
     }
     if (priv->horiz_scroll_edge_on || priv->horiz_scroll_twofinger_on) {
 	/* + = right, - = left */
 	int delta = para->scroll_dist_horiz;
-	
+
 	if (delta > 0) {
 	    while (hw->x - priv->scroll_x > delta) {
 		sd->right++;
@@ -2110,7 +2110,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
 		priv->scroll_x -= delta;
 	    }
 	}
-	
+
 	sd->delta_horiz = priv->scroll_x - hw->x;
 	priv->scroll_last_x = hw->x;
     }
