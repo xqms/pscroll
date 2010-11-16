@@ -6,9 +6,9 @@ See https://github.com/x-quadraht/pscroll for details
 ---
  include/evdev-properties.h |    2 +
  src/emuWheel.c             |    7 ++
- src/evdev.c                |  140 ++++++++++++++++++++++++++++++++------------
- src/evdev.h                |    5 ++
- 4 files changed, 115 insertions(+), 39 deletions(-)
+ src/evdev.c                |  176 ++++++++++++++++++++++++++++++++++----------
+ src/evdev.h                |    5 +
+ 4 files changed, 150 insertions(+), 40 deletions(-)
 
 diff --git a/include/evdev-properties.h b/include/evdev-properties.h
 index 7df2876..5344a5a 100644
@@ -49,7 +49,7 @@ index 9a53211..98c6e44 100644
              "EmulateWheelInertia: %d, "
              "EmulateWheelTimeout: %d\n",
 diff --git a/src/evdev.c b/src/evdev.c
-index 040cfdc..81a3d64 100644
+index 040cfdc..b79e811 100644
 --- a/src/evdev.c
 +++ b/src/evdev.c
 @@ -125,6 +125,7 @@ static Atom prop_calibration = 0;
@@ -190,7 +190,7 @@ index 040cfdc..81a3d64 100644
          if (!TestBit(axis, pEvdev->rel_bitmask))
              continue;
          pEvdev->axis_map[axis] = i;
-@@ -1445,9 +1456,18 @@ EvdevAddRelClass(DeviceIntPtr device)
+@@ -1445,19 +1456,29 @@ EvdevAddRelClass(DeviceIntPtr device)
      for (axis = REL_X; axis <= REL_MAX; axis++)
      {
          int axnum = pEvdev->axis_map[axis];
@@ -209,7 +209,11 @@ index 040cfdc..81a3d64 100644
          xf86InitValuatorAxisStruct(device, axnum,
  #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
                  atoms[axnum],
-@@ -1458,6 +1478,7 @@ EvdevAddRelClass(DeviceIntPtr device)
+ #endif
+-                -1, -1, 1, 0, 1
++                -1, -1, resolution, 0, resolution
+ #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 12
+                                    , Relative
  #endif
                  );
          xf86InitValuatorDefaults(device, axnum);
@@ -241,7 +245,7 @@ index 040cfdc..81a3d64 100644
      xf86DeleteInput(pInfo, 0);
      return NULL;
  }
-@@ -2268,6 +2297,20 @@ EvdevPreInit(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
+@@ -2268,6 +2297,16 @@ EvdevPreInit(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
          goto error;
      }
  
@@ -250,19 +254,15 @@ index 040cfdc..81a3d64 100644
 +    if(pEvdev->wheel_resolution <= 0) {
 +        xf86Msg(X_WARNING, "%s: Invalid WheelResolution value: %d\n",
 +                pInfo->name, pEvdev->wheel_resolution);
-+        xf86Msg(X_WARNING, "%s: Using built-in resolution value.\n",
-+                pInfo->name);
-+
-+        if(pEvdev->emulateWheel.enabled)
-+            pEvdev->wheel_resolution = 42;
-+        else
-+            pEvdev->wheel_resolution = 1;
++        pEvdev->wheel_resolution = 42;
++        xf86Msg(X_WARNING, "%s: Using built-in resolution value %d.\n",
++                pInfo->name, pEvdev->wheel_resolution);
 +    }
 +
      EvdevInitButtonMapping(pInfo);
  
      if (EvdevCacheCompare(pInfo, FALSE) ||
-@@ -2680,6 +2723,18 @@ EvdevInitProperty(DeviceIntPtr dev)
+@@ -2680,6 +2719,18 @@ EvdevInitProperty(DeviceIntPtr dev)
  
          XISetDevicePropertyDeletable(dev, prop_swap, FALSE);
  
@@ -281,7 +281,52 @@ index 040cfdc..81a3d64 100644
  #ifdef HAVE_LABELS
          /* Axis labelling */
          if ((pEvdev->num_vals > 0) && (prop_axis_label = XIGetKnownProperty(AXIS_LABEL_PROP)))
-@@ -2739,6 +2794,13 @@ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
+@@ -2704,6 +2755,44 @@ EvdevInitProperty(DeviceIntPtr dev)
+ 
+ }
+ 
++static void
++EvdevSetWheelResolution(DeviceIntPtr dev, int resolution)
++{
++    InputInfoPtr pInfo  = dev->public.devicePrivate;
++    EvdevPtr     pEvdev = pInfo->private;
++    int axnum;
++
++    pEvdev->wheel_resolution = resolution;
++
++    axnum = pEvdev->axis_map[REL_WHEEL];
++    if(axnum != -1)
++    {
++        xf86InitValuatorAxisStruct(dev, axnum,
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++                XIGetKnownProperty(rel_labels[REL_WHEEL]),
++#endif
++                -1, -1, resolution, 0, resolution
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 12
++                                   , Relative
++#endif
++                );
++    }
++
++    axnum = pEvdev->axis_map[REL_HWHEEL];
++    if(axnum != -1)
++    {
++        xf86InitValuatorAxisStruct(dev, axnum,
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 7
++                XIGetKnownProperty(rel_labels[REL_HWHEEL]),
++#endif
++                -1, -1, resolution, 0, resolution
++#if GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 12
++                                   , Relative
++#endif
++                );
++    }
++}
++
+ static int
+ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
+                  BOOL checkonly)
+@@ -2739,6 +2828,13 @@ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
  
          if (!checkonly)
              pEvdev->swap_axes = *((BOOL*)val->data);
@@ -291,7 +336,7 @@ index 040cfdc..81a3d64 100644
 +            return BadMatch;
 +
 +        if(!checkonly)
-+            pEvdev->wheel_resolution = *((CARD32*)val->data);
++            EvdevSetWheelResolution(dev, *((CARD32*)val->data));
      } else if (atom == prop_axis_label || atom == prop_btn_label)
          return BadAccess; /* Axis/Button labels can't be changed */
  
