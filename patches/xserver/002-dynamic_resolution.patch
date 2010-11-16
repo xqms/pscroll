@@ -1,0 +1,72 @@
+xi: Allow changing of valuator axis resolution at runtime + send events
+
+From: Max Schwarz <Max@x-quadraht.de>
+
+Adds DeviceChangedEvent generation code to InitValuatorAxisStruct.
+---
+ Xi/exevents.c |   45 ++++++++++++++++++++++++++++++++++++++++++++-
+ 1 files changed, 44 insertions(+), 1 deletions(-)
+
+diff --git a/Xi/exevents.c b/Xi/exevents.c
+index 417078d..5dbb14e 100644
+--- a/Xi/exevents.c
++++ b/Xi/exevents.c
+@@ -1119,7 +1119,8 @@ InitProximityClassDeviceStruct(DeviceIntPtr dev)
+ /**
+  * Initialise the device's valuators. The memory must already be allocated,
+  * this function merely inits the matching axis (specified through axnum) to
+- * sane values.
++ * sane values. It also sends out a DeviceChangedEvent if the device was already
++ * initialized.
+  *
+  * It is a condition that (minval < maxval).
+  *
+@@ -1149,6 +1150,48 @@ InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, int
+ 
+     if (mode & OutOfProximity)
+         dev->proximity->in_proximity = FALSE;
++
++    /* Don't send an event if the device has not been initialized */
++    if(dev->inited)
++    {
++        DeviceChangedEvent event;
++        DeviceIntPtr master;
++        int i;
++
++        master = GetMaster(dev, MASTER_POINTER);
++        if(!master)
++            return;
++
++        memset(&event, 0, sizeof(event));
++
++        event.header = ET_Internal;
++        event.type = ET_DeviceChanged;
++        event.time = GetTimeInMillis();
++        event.deviceid = dev->id;
++        event.flags = DEVCHANGE_POINTER_EVENT | DEVCHANGE_DEVICE_CHANGE;
++
++        event.buttons.num_buttons = dev->button->numButtons;
++        memcpy(&event.buttons.names, dev->button->labels,
++               dev->button->numButtons * sizeof(Atom));
++
++        event.num_valuators = dev->valuator->numAxes;
++        for(i = 0; i < event.num_valuators; ++i)
++        {
++            event.valuators[i].min = dev->valuator->axes[i].min_value;
++            event.valuators[i].max = dev->valuator->axes[i].max_value;
++            event.valuators[i].resolution = dev->valuator->axes[i].resolution;
++            event.valuators[i].mode = dev->valuator->axes[i].mode;
++            event.valuators[i].name = dev->valuator->axes[i].label;
++        }
++
++        if(dev->key)
++        {
++            event.keys.min_keycode = dev->key->xkbInfo->desc->min_key_code;
++            event.keys.max_keycode = dev->key->xkbInfo->desc->max_key_code;
++        }
++
++        XISendDeviceChangedEvent(dev, master, &event);
++    }
+ }
+ 
+ /**

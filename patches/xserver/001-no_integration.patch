@@ -1,0 +1,131 @@
+xi: Add no_integration flag to valuator axes
+
+From: Max Schwarz <Max@x-quadraht.de>
+
+
+---
+ Xi/exevents.c                  |   19 +++++++++++++++++++
+ dix/getevents.c                |   13 ++++++++++---
+ hw/xfree86/common/xf86Xinput.c |    6 ++++++
+ hw/xfree86/common/xf86Xinput.h |    1 +
+ include/exevents.h             |    6 ++++++
+ include/inputstr.h             |    1 +
+ 6 files changed, 43 insertions(+), 3 deletions(-)
+
+diff --git a/Xi/exevents.c b/Xi/exevents.c
+index d57265e..417078d 100644
+--- a/Xi/exevents.c
++++ b/Xi/exevents.c
+@@ -1145,11 +1145,30 @@ InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, int
+     ax->max_resolution = max_res;
+     ax->label = label;
+     ax->mode = mode;
++    ax->no_integration = 0;
+ 
+     if (mode & OutOfProximity)
+         dev->proximity->in_proximity = FALSE;
+ }
+ 
++/**
++ * Prevents axis from being integrated in dix/getevents.c
++ */
++void
++SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration)
++{
++    AxisInfoPtr ax;
++
++    if (!dev || !dev->valuator)
++        return;
++    if (axnum >= dev->valuator->numAxes)
++        return;
++
++    ax = dev->valuator->axes + axnum;
++
++    ax->no_integration = no_integration;
++}
++
+ static void
+ FixDeviceStateNotify(DeviceIntPtr dev, deviceStateNotify * ev, KeyClassPtr k,
+ 		     ButtonClassPtr b, ValuatorClassPtr v, int first)
+diff --git a/dix/getevents.c b/dix/getevents.c
+index 9553728..f81ab87 100644
+--- a/dix/getevents.c
++++ b/dix/getevents.c
+@@ -779,9 +779,16 @@ moveRelative(DeviceIntPtr dev, int *x, int *y, ValuatorMask *mask)
+     {
+         if (valuator_mask_isset(mask, i))
+         {
+-            dev->last.valuators[i] += valuator_mask_get(mask, i);
+-            if (valuator_get_mode(dev, i) == Absolute)
+-                clipAxis(dev, i, &dev->last.valuators[i]);
++            if(dev->valuator->axes[i].no_integration)
++            {
++                dev->last.valuators[i] = valuator_mask_get(mask, i);
++            }
++            else
++            {
++                dev->last.valuators[i] += valuator_mask_get(mask, i);
++                if (valuator_get_mode(dev, i) == Absolute)
++                    clipAxis(dev, i, &dev->last.valuators[i]);
++            }
+             valuator_mask_set(mask, i, dev->last.valuators[i]);
+         }
+     }
+diff --git a/hw/xfree86/common/xf86Xinput.c b/hw/xfree86/common/xf86Xinput.c
+index 3664d46..66830f6 100644
+--- a/hw/xfree86/common/xf86Xinput.c
++++ b/hw/xfree86/common/xf86Xinput.c
+@@ -1337,6 +1337,12 @@ xf86InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval,
+ 			   max_res, mode);
+ }
+ 
++void
++xf86SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration)
++{
++    SetValuatorAxisNoIntegration(dev, axnum, no_integration);
++}
++
+ /*
+  * Set the valuator values to be in synch with dix/event.c
+  * DefineInitialRootWindow().
+diff --git a/hw/xfree86/common/xf86Xinput.h b/hw/xfree86/common/xf86Xinput.h
+index 3a17116..0d5bf9a 100644
+--- a/hw/xfree86/common/xf86Xinput.h
++++ b/hw/xfree86/common/xf86Xinput.h
+@@ -148,6 +148,7 @@ extern _X_EXPORT void xf86ProcessCommonOptions(InputInfoPtr pInfo, pointer optio
+ extern _X_EXPORT void xf86InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval,
+ 				int maxval, int resolution, int min_res,
+ 				int max_res, int mode);
++extern _X_EXPORT void xf86SetValuatorAxisNoIntegration(DeviceIntPtr dev, int axnum, Bool no_integration);
+ extern _X_EXPORT void xf86InitValuatorDefaults(DeviceIntPtr dev, int axnum);
+ extern _X_EXPORT void xf86AddEnabledDevice(InputInfoPtr pInfo);
+ extern _X_EXPORT void xf86RemoveEnabledDevice(InputInfoPtr pInfo);
+diff --git a/include/exevents.h b/include/exevents.h
+index bfee385..f9af9fc 100644
+--- a/include/exevents.h
++++ b/include/exevents.h
+@@ -51,6 +51,12 @@ extern _X_EXPORT void InitValuatorAxisStruct(
+ 	int                    /* max_res */,
+ 	int                    /* mode */);
+ 
++extern _X_EXPORT void SetValuatorAxisNoIntegration(
++       DeviceIntPtr           /* dev */,
++       int                    /* axnum */,
++       Bool                   /* no_integration */
++);
++
+ /* Input device properties */
+ extern _X_EXPORT void XIDeleteAllDeviceProperties(
+         DeviceIntPtr            /* device */
+diff --git a/include/inputstr.h b/include/inputstr.h
+index d4c253e..5f33712 100644
+--- a/include/inputstr.h
++++ b/include/inputstr.h
+@@ -219,6 +219,7 @@ typedef struct _AxisInfo {
+     int		max_value;
+     Atom	label;
+     CARD8	mode;
++    Bool	no_integration;
+ } AxisInfo, *AxisInfoPtr;
+ 
+ typedef struct _ValuatorAccelerationRec {
