@@ -61,7 +61,7 @@ static void findWheelDevice()
 		if(dev->use != XIMasterPointer)
 			continue;
 		
-		printf("Device: %s\n", dev->name);
+		printf("Device: %s (id=%d)\n", dev->name, dev->deviceid);
 		
 		for(j = 0; j < dev->num_classes; ++j) {
 			XIAnyClassInfo *aclass = dev->classes[j];
