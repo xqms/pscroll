@@ -13,7 +13,7 @@ h2. Rationale
 pscroll proposes using a new valuator to report wheel events, which gives
 accurate scrolling information in addition to the old button interface, to
 keep the compability with current clients. The resolution field of the
-valuator (needs XI2) specifies how much valuator units make up one
+valuator (needs XI2) specifies how many valuator ticks make up one
 old scroll "click" so that toolkits can calculate how much to scroll.
 
 h2. Current status
