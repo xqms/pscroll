@@ -126,6 +126,14 @@ static void process_event(XIDeviceEvent *data)
 	printf("Scroll valuator event: %f\n", data->valuators.values[idx]);
 }
 
+static void print_changeEvent(XIDeviceChangedEvent *event)
+{
+	printf("Change event:\n");
+	printf(" deviceid: %d\n", event->deviceid);
+	printf(" sourceid: %d\n", event->sourceid);
+	printf(" reason: %d\n", event->reason);
+}
+
 static int has_xi2()
 {
 	int major, minor;
@@ -210,6 +218,7 @@ int main(int argc, char **argv)
 				process_event(event.xcookie.data);
 				break;
 			case XI_DeviceChanged:
+				print_changeEvent(event.xcookie.data);
 				findWheelDevice();
 				break;
 		}
