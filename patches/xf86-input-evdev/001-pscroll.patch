@@ -4,11 +4,11 @@ From: Max Schwarz <Max@x-quadraht.de>
 
 See https://github.com/x-quadraht/pscroll for details
 ---
- include/evdev-properties.h |    2 +
+ include/evdev-properties.h |    2 
  src/emuWheel.c             |    7 ++
- src/evdev.c                |  176 ++++++++++++++++++++++++++++++++++----------
+ src/evdev.c                |  178 ++++++++++++++++++++++++++++++++++----------
  src/evdev.h                |    5 +
- 4 files changed, 150 insertions(+), 40 deletions(-)
+ 4 files changed, 152 insertions(+), 40 deletions(-)
 
 diff --git a/include/evdev-properties.h b/include/evdev-properties.h
 index 7df2876..5344a5a 100644
@@ -49,7 +49,7 @@ index 9a53211..98c6e44 100644
              "EmulateWheelInertia: %d, "
              "EmulateWheelTimeout: %d\n",
 diff --git a/src/evdev.c b/src/evdev.c
-index 040cfdc..b79e811 100644
+index 040cfdc..243a307 100644
 --- a/src/evdev.c
 +++ b/src/evdev.c
 @@ -125,6 +125,7 @@ static Atom prop_calibration = 0;
@@ -281,7 +281,7 @@ index 040cfdc..b79e811 100644
  #ifdef HAVE_LABELS
          /* Axis labelling */
          if ((pEvdev->num_vals > 0) && (prop_axis_label = XIGetKnownProperty(AXIS_LABEL_PROP)))
-@@ -2704,6 +2755,44 @@ EvdevInitProperty(DeviceIntPtr dev)
+@@ -2704,6 +2755,46 @@ EvdevInitProperty(DeviceIntPtr dev)
  
  }
  
@@ -306,6 +306,7 @@ index 040cfdc..b79e811 100644
 +                                   , Relative
 +#endif
 +                );
++        xf86SetValuatorAxisNoIntegration(dev, axnum, 1);
 +    }
 +
 +    axnum = pEvdev->axis_map[REL_HWHEEL];
@@ -320,13 +321,14 @@ index 040cfdc..b79e811 100644
 +                                   , Relative
 +#endif
 +                );
++        xf86SetValuatorAxisNoIntegration(dev, axnum, 1);
 +    }
 +}
 +
  static int
  EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
                   BOOL checkonly)
-@@ -2739,6 +2828,13 @@ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
+@@ -2739,6 +2830,13 @@ EvdevSetProperty(DeviceIntPtr dev, Atom atom, XIPropertyValuePtr val,
  
          if (!checkonly)
              pEvdev->swap_axes = *((BOOL*)val->data);
