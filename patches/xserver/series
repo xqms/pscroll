@@ -1,3 +1,3 @@
-# This series applies on GIT commit c1992449bde32505350570dc5db80b8dbae61dfc
-001-no_integration.patch
-002-dynamic_resolution.patch
+# This series applies on GIT commit 539d51b22497ac96d8848a246cc72daafe875fc7
+01-no_integration.patch
+02-dynamic_resolution.patch

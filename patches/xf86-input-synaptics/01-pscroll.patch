@@ -1,0 +1,167 @@
+Add high precision scroll event support
+
+From: Max Schwarz <Max@x-quadraht.de>
+
+See https://github.com/x-quadraht/pscroll for details
+---
+ src/synaptics.c    |   46 ++++++++++++++++++++++++++++++++++++++--------
+ src/synapticsstr.h |    6 ++++--
+ 2 files changed, 42 insertions(+), 10 deletions(-)
+
+diff --git a/src/synaptics.c b/src/synaptics.c
+index c44d1f7..f5bde1c 100644
+--- a/src/synaptics.c
++++ b/src/synaptics.c
+@@ -920,6 +920,9 @@ static void InitAxesLabels(Atom *labels, int nlabels)
+     switch(nlabels)
+     {
+         default:
++        case 4:
++            labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_WHEEL);
++            labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HWHEEL);
+         case 2:
+             labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_Y);
+         case 1:
+@@ -963,10 +966,10 @@ DeviceInit(DeviceIntPtr dev)
+     int i;
+     int min, max;
+     Atom btn_labels[SYN_MAX_BUTTONS] = { 0 };
+-    Atom axes_labels[2] = { 0 };
++    Atom axes_labels[4] = { 0 };
+     DeviceVelocityPtr pVel;
+ 
+-    InitAxesLabels(axes_labels, 2);
++    InitAxesLabels(axes_labels, 4);
+     InitButtonLabels(btn_labels, SYN_MAX_BUTTONS);
+ 
+     DBG(3, "Synaptics DeviceInit called\n");
+@@ -981,7 +984,7 @@ DeviceInit(DeviceIntPtr dev)
+                             btn_labels,
+ 			    SynapticsCtrl,
+ 			    GetMotionHistorySize(),
+-                            2,
++                            4,
+                             axes_labels);
+ 
+     /*
+@@ -1066,6 +1069,21 @@ DeviceInit(DeviceIntPtr dev)
+     if (!alloc_shm_data(pInfo))
+ 	return !Success;
+ 
++    /* Scroll valuators */
++    xf86InitValuatorAxisStruct(dev, 2,
++            axes_labels[2],
++            -1, -1, priv->synpara.scroll_dist_horiz, 0,
++            priv->synpara.scroll_dist_horiz, Relative);
++    xf86InitValuatorDefaults(dev, 2);
++    xf86SetValuatorAxisFlags(dev, 2, AXIS_NO_INTEGRATION);
++
++    xf86InitValuatorAxisStruct(dev, 3,
++            axes_labels[3],
++            -1, -1, priv->synpara.scroll_dist_vert, 0,
++            priv->synpara.scroll_dist_vert, Relative);
++    xf86InitValuatorDefaults(dev, 3);
++    xf86SetValuatorAxisFlags(dev, 3, AXIS_NO_INTEGRATION);
++
+     InitDeviceProperties(pInfo);
+     XIRegisterPropertyHandler(pInfo->dev, SetProperty, NULL, NULL);
+ 
+@@ -1932,6 +1950,8 @@ out:
+ 
+ struct ScrollData {
+     int left, right, up, down;
++	int delta_horiz;
++	int delta_vert;
+ };
+ 
+ static double
+@@ -2019,7 +2039,7 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+     SynapticsParameters *para = &priv->synpara;
+     int delay = 1000000000;
+ 
+-    sd->left = sd->right = sd->up = sd->down = 0;
++    memset(sd, 0, sizeof(struct ScrollData));
+ 
+     if ((priv->synpara.touchpad_off == 2) || (priv->finger_state == FS_BLOCKED)) {
+ 	stop_coasting(priv);
+@@ -2058,14 +2078,14 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 		    (para->scroll_twofinger_vert) && (para->scroll_dist_vert != 0)) {
+ 		    priv->vert_scroll_twofinger_on = TRUE;
+ 		    priv->vert_scroll_edge_on = FALSE;
+-		    priv->scroll.last_y = hw->y;
++		    priv->scroll.last_smooth_y = priv->scroll.last_y = hw->y;
+ 		    DBG(7, "vert two-finger scroll detected\n");
+ 		}
+ 		if (!priv->horiz_scroll_twofinger_on &&
+ 		    (para->scroll_twofinger_horiz) && (para->scroll_dist_horiz != 0)) {
+ 		    priv->horiz_scroll_twofinger_on = TRUE;
+ 		    priv->horiz_scroll_edge_on = FALSE;
+-		    priv->scroll.last_x = hw->x;
++		    priv->scroll.last_smooth_x = priv->scroll.last_x = hw->x;
+ 		    DBG(7, "horiz two-finger scroll detected\n");
+ 		}
+ 	    }
+@@ -2075,13 +2095,13 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 		if ((para->scroll_edge_vert) && (para->scroll_dist_vert != 0) &&
+ 		    (edge & RIGHT_EDGE)) {
+ 		    priv->vert_scroll_edge_on = TRUE;
+-		    priv->scroll.last_y = hw->y;
++		    priv->scroll.last_smooth_y = priv->scroll.last_y = hw->y;
+ 		    DBG(7, "vert edge scroll detected on right edge\n");
+ 		}
+ 		if ((para->scroll_edge_horiz) && (para->scroll_dist_horiz != 0) &&
+ 		    (edge & BOTTOM_EDGE)) {
+ 		    priv->horiz_scroll_edge_on = TRUE;
+-		    priv->scroll.last_x = hw->x;
++		    priv->scroll.last_smooth_x = priv->scroll.last_x = hw->x;
+ 		    DBG(7, "horiz edge scroll detected on bottom edge\n");
+ 		}
+ 	    }
+@@ -2207,6 +2227,9 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 		priv->scroll.last_y -= delta;
+ 	    }
+ 	}
++
++	sd->delta_vert = priv->scroll.last_smooth_y - hw->y;
++	priv->scroll.last_smooth_y = hw->y;
+     }
+     if (priv->horiz_scroll_edge_on || priv->horiz_scroll_twofinger_on) {
+ 	/* + = right, - = left */
+@@ -2221,6 +2244,9 @@ HandleScrolling(SynapticsPrivate *priv, struct SynapticsHwState *hw,
+ 		priv->scroll.last_x -= delta;
+ 	    }
+ 	}
++
++	sd->delta_horiz = priv->scroll.last_smooth_x - hw->x;
++	priv->scroll.last_smooth_x = hw->x;
+     }
+     if (priv->circ_scroll_on) {
+ 	/* + = counter clockwise, - = clockwise */
+@@ -2632,6 +2658,10 @@ HandleState(InputInfoPtr pInfo, struct SynapticsHwState *hw, CARD32 now,
+         } else if (dx || dy) {
+             xf86PostMotionEvent(pInfo->dev, 0, 0, 2, dx, dy);
+         }
++        if (scroll.delta_horiz || scroll.delta_vert) {
++            xf86PostMotionEvent(pInfo->dev, 0, 2, 2,
++                                scroll.delta_horiz, scroll.delta_vert);
++        }
+     }
+ 
+     if (priv->mid_emu_state == MBE_LEFT_CLICK)
+diff --git a/src/synapticsstr.h b/src/synapticsstr.h
+index 5469b0c..4ad24e2 100644
+--- a/src/synapticsstr.h
++++ b/src/synapticsstr.h
+@@ -194,8 +194,10 @@ typedef struct _SynapticsPrivateRec
+     int hyst_center_x;			/* center x of hysteresis*/
+     int hyst_center_y;			/* center y of hysteresis*/
+     struct {
+-        int last_x;			/* last x-scroll position */
+-        int last_y;			/* last y-scroll position */
++        int last_x;			/* last x-scroll position (clickety) */
++        int last_y;			/* last y-scroll position (clickety) */
++        int last_smooth_x;		/* last x-scroll position (smooth) */
++        int last_smooth_y;		/* last y-scroll position (smooth) */
+         double last_a;			/* last angle-scroll position */
+         CARD32 last_millis;		/* time last scroll event posted */
+         double coast_speed_x;		/* Horizontal coasting speed */

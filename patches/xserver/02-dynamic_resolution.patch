@@ -2,16 +2,16 @@ xi: Allow changing of valuator axis resolution at runtime + send events
 
 From: Max Schwarz <Max@x-quadraht.de>
 
-Adds DeviceChangedEvent generation code to InitValuatorAxisStruct.
+
 ---
  Xi/exevents.c |   47 ++++++++++++++++++++++++++++++++++++++++++++++-
  1 files changed, 46 insertions(+), 1 deletions(-)
 
 diff --git a/Xi/exevents.c b/Xi/exevents.c
-index 417078d..07b64b9 100644
+index 919c99a..82b7b5c 100644
 --- a/Xi/exevents.c
 +++ b/Xi/exevents.c
-@@ -1119,7 +1119,8 @@ InitProximityClassDeviceStruct(DeviceIntPtr dev)
+@@ -1070,7 +1070,8 @@ InitProximityClassDeviceStruct(DeviceIntPtr dev)
  /**
   * Initialise the device's valuators. The memory must already be allocated,
   * this function merely inits the matching axis (specified through axnum) to
@@ -21,12 +21,12 @@ index 417078d..07b64b9 100644
   *
   * It is a condition that (minval < maxval).
   *
-@@ -1149,6 +1150,50 @@ InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, int
+@@ -1100,6 +1101,50 @@ InitValuatorAxisStruct(DeviceIntPtr dev, int axnum, Atom label, int minval, int
  
      if (mode & OutOfProximity)
          dev->proximity->in_proximity = FALSE;
 +
-+    /* Don't send an event if the device has not been initialized */
++    /* don't send an event if the device has not been initialized */
 +    if(dev->inited)
 +    {
 +        DeviceChangedEvent event;
@@ -48,8 +48,8 @@ index 417078d..07b64b9 100644
 +        event.flags = DEVCHANGE_POINTER_EVENT | DEVCHANGE_DEVICE_CHANGE;
 +
 +        event.buttons.num_buttons = dev->button->numButtons;
-+        memcpy(&event.buttons.names, dev->button->labels,
-+               dev->button->numButtons * sizeof(Atom));
++        memcpy(&event->buttons.names, dev->button->labels,
++            dev->button->numButtons * sizeof(Atom));
 +
 +        event.num_valuators = dev->valuator->numAxes;
 +        for(i = 0; i < event.num_valuators; ++i)
